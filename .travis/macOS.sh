@@ -4,7 +4,7 @@ set -eu -o pipefail
 
 brew update > /dev/null
 
-brew install ccache qt5
+brew install qt5
 
 export PATH="/usr/local/opt/qt/bin:$PATH"
 export LDFLAGS="-L/usr/local/opt/qt/lib"
