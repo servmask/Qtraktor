@@ -4,6 +4,7 @@ language: cpp
 branches:
   only:
   - master
+
 matrix:
   fast_finish: true
   include:
@@ -11,14 +12,15 @@ matrix:
     os: osx
     osx_image: xcode10.1
     env: JOB=macOS
+
 script: "./.travis/$JOB.sh"
+
 deploy:
-  matrix:
-  - provider: releases
-    file: "./Traktor.dmg"
-    on:
-      condition: "$TRAVIS_OS_NAME == osx"
-      repo: servmask/Qtraktor
+  provider: releases
+  file: "./Traktor.dmg"
+  on:
+    condition: "$TRAVIS_OS_NAME == osx"
+    repo: servmask/Qtraktor
     skip_cleanup: true
   api-key:
     secure: IVW/r56o5HOhUBTcubKFUZUE2KzHs9BhBCfpH8HcylOTJaL3axqw0pWeN7gTbvl50Jl5/ujaMIVdThc5wKfVBBvXpqEslr/WRb3yp4BOPiiY0Rh7SGRddTHRtwyBih0Yp8JkxIfyT37fEaN5Pqm1X46el7A2sRtKST3Qi09XhOFhRPuAEzsD/3H9cQ/7RJRmbML+6v1VhbkdXDS2s3oU2ZcPPvSv/u1pq3xkm+ay0eKUzJrv354nYGdDB+e9NYsnKz7yggWjZiDk57zktYnxeaOkBaVpotv2etrHR0GTJfVM1PeHmr9Ao1ToXwuF1/Bz8SZ2w1fFhSkf3S6jqVLQpl4riNaW3SS9wu1qANMI51IW5/bitic2ZJT1VJOFf1ZQF3jUbVZpPMyVZ+1jm2b7YDrAV47eT7XtficKYhs0x4TXtPnDMQwoqMCxiIAlGrl8ri2ZJunwgnTwKKag81BKblATYA75IZKhKv1DKlBkySnCyVLO352ysvnkHp2cGXzHut5BTLImqv9ZuNBzEsOQ/TRBZejYc2LbXTHeooxesGioZ7ggOquRqYI0YxJtSrtRowGwhYmPW2dEmhzkXmrLNC1tFhMsF7W5tFvCsJjbwaTopzXJvpt6hK09vIOgNxl7i43v4Vahe1kKM19LPXwwHGspljuDDgv5cQnBjN8yrEg=
