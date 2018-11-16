@@ -13,7 +13,7 @@ matrix:
     - stage: "macOS"
       os: osx
       osx_image: xcode10.1
-      env: JOB=build-osx
+      env: JOB=macOS
 
 deploy:
   - provider: releases
