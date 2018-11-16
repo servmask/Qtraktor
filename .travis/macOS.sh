@@ -17,3 +17,5 @@ make -j$(sysctl -n hw.ncpu)
 
 # add dependencies
 macdeployqt Traktor.app
+
+hdiutil create -volname "Traktor" -srcfolder "Traktor.app" -format UDZO "Traktor.dmg"
