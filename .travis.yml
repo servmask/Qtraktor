@@ -15,6 +15,11 @@ matrix:
 
 script: "./.travis/$JOB.sh"
 
+before_deploy:
+  - git config --local user.name "yani-"
+  - git config --local user.email "yani@iliev.me"
+  - git tag "$(git describe)"
+
 deploy:
   provider: releases
   file: "./Traktor.dmg"
