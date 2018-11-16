@@ -1,0 +1,25 @@
+sudo: required
+dist: trusty
+language: cpp
+cache: ccache
+
+branches:
+  only:
+    - master
+
+matrix:
+  fast_finish: true
+  include:
+    - stage: "macOS"
+      os: osx
+      osx_image: xcode10.1
+      env: JOB=build-osx
+
+deploy:
+  - provider: releases
+    file: "./Traktor.dmg"
+    on:
+      condition: $TRAVIS_OS_NAME == osx
+      repo: servmask/Qtraktor
+      tags: true
+    skip_cleanup: true
