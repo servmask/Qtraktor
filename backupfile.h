@@ -1,7 +1,9 @@
 #ifndef BACKUPFILE_H
 #define BACKUPFILE_H
-#include <QFile>
+
+#include <QApplication>
 #include <QDir>
+#include <QFile>
 
 class BackupFile : public QFile
 {
@@ -82,8 +84,8 @@ class BackupFile : public QFile
     {
       qint64 _bytesRead = QFile::readData(data, maxlen);
       bytesRead += _bytesRead;
-
-      emit progress((bytesRead / size()) * 100);
+      emit progress((static_cast<float>(bytesRead) / size()) * 100);
+      QApplication::processEvents();
       return _bytesRead;
     }
 
