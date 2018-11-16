@@ -24,6 +24,7 @@ class MainWindow : public QMainWindow
   private:
     Ui::MainWindow *ui;
     QString backupFilename;
+    void showInGraphicalShell(const QString &pathIn);
 };
 
 #endif // MAINWINDOW_H

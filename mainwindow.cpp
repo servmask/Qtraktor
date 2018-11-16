@@ -3,6 +3,8 @@
 #include <QFileDialog>
 #include <QIODevice>
 #include <QMessageBox>
+#include <QProcessEnvironment>
+#include <QProcess>
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent),
@@ -111,11 +113,41 @@ void MainWindow::extractTo()
   ui->backupNameLabel->setText(tr("Extracted backup in %1").arg(extractTo.path()));
   ui->backupNameLabel->setVisible(true);
   ui->extractBackupButton->setDisabled(true);
-
+  showInGraphicalShell(extractTo.path());
   backupFile.close();
 }
 
 void MainWindow::extractProgress(float percent)
 {
   ui->progressBar->setValue(static_cast<int>(percent));
+}
+
+// copied form https://github.com/qt-creator/qt-creator/blob/master/src/plugins/coreplugin/fileutils.cpp#L67
+void MainWindow::showInGraphicalShell(const QString &pathIn)
+{
+    const QFileInfo fileInfo(pathIn);
+
+#if defined (Q_OS_WIN)
+        const FileName explorer = QProcessEnvironment::systemEnvironment().toStringList().searchInPath(QLatin1String("explorer.exe"));
+        if (explorer.isEmpty()) {
+            return;
+        }
+        QStringList param;
+        if (!fileInfo.isDir())
+            param += QLatin1String("/select,");
+        param += QDir::toNativeSeparators(fileInfo.canonicalFilePath());
+        QProcess::startDetached(explorer.toString(), param);
+#endif
+
+#if defined (Q_OS_MAC)
+        QStringList scriptArgs;
+        scriptArgs << QLatin1String("-e")
+                   << QString::fromLatin1("tell application \"Finder\" to reveal POSIX file \"%1\"")
+                                         .arg(fileInfo.canonicalFilePath());
+        QProcess::execute(QLatin1String("/usr/bin/osascript"), scriptArgs);
+        scriptArgs.clear();
+        scriptArgs << QLatin1String("-e")
+                   << QLatin1String("tell application \"Finder\" to activate");
+        QProcess::execute(QLatin1String("/usr/bin/osascript"), scriptArgs);
+#endif
 }
