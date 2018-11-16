@@ -6,4 +6,6 @@ brew update > /dev/null
 
 brew install ccache qt5
 
-make -j$(sysctl -n hw.ncpu) ../
+cd ..
+qmake
+make -j$(sysctl -n hw.ncpu)
