@@ -14,3 +14,6 @@ cd $TRAVIS_BUILD_DIR
 
 qmake Qtraktor.pro
 make -j$(sysctl -n hw.ncpu)
+
+# add dependencies
+macdeployqt Traktor.app
