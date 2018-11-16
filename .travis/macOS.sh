@@ -10,7 +10,7 @@ export PATH="/usr/local/opt/qt/bin:$PATH"
 export LDFLAGS="-L/usr/local/opt/qt/lib"
 export CPPFLAGS="-I/usr/local/opt/qt/include"
 
-cd ..
+cd $TRAVIS_BUILD_DIR
 
-qmake
+qmake Qtraktor.pro
 make -j$(sysctl -n hw.ncpu)
