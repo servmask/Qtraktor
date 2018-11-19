@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Installer>
+    <Name>Traktor</Name>
+    <Version>develop</Version>
+    <Title>Traktor Installer</Title>
+    <Publisher>ServMask, Inc.</Publisher>
+    <StartMenuDir>Traktor</StartMenuDir>
+    <TargetDir>@ApplicationsDir@/Traktor</TargetDir>
+</Installer>

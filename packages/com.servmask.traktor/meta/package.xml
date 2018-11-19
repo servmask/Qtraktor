@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package>
+    <DisplayName>Traktor</DisplayName>
+    <Description>Install Traktor - WPRESS Extractor.</Description>
+    <Version>develop</Version>
+    <ReleaseDate>date</ReleaseDate>
+    <Licenses>
+        <License name="GPLv3" file="LICENSE" />
+    </Licenses>
+    <Default>true</Default>
+    <UserInterfaces>
+        <UserInterface>page.ui</UserInterface>
+    </UserInterfaces>
+</Package>
