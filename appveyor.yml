@@ -1,0 +1,50 @@
+version: 1.0.{build}
+skip_non_tags: true
+image: Visual Studio 2017
+platform: Any CPU
+build_script:
+- ps: >-
+    pushd 'C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build'
+
+    cmd /c "vcvars64.bat&set" |
+
+    foreach {
+      if ($_ -match "=") {
+        $v = $_.split("="); set-item -force -path "ENV:\$($v[0])"  -value "$($v[1])"
+      }
+    }
+
+    popd
+
+
+
+    C:\Qt\latest\msvc2017_64\bin\qmake.exe Qtraktor.pro
+
+    C:\Qt\Tools\QtCreator\bin\jom.exe -f Makefile.Release
+
+    C:\Qt\latest\msvc2017_64\bin\windeployqt release\Traktor.exe
+
+
+    mkdir packages\com.servmask.traktor\data
+
+    Get-ChildItem release | Copy-Item -Destination packages\com.servmask.traktor\data -Recurse
+
+
+    (Get-Content -Path "config\config.xml") | ForEach-Object {$_ -Replace "develop", $Env:APPVEYOR_BUILD_VERSION} | Set-Content -Path "config\config.xml"
+
+
+    (Get-Content -Path "packages\com.servmask.traktor\meta\package.xml") | ForEach-Object {$_ -Replace "develop", $Env:APPVEYOR_BUILD_VERSION} | Set-Content -Path "packages\com.servmask.traktor\meta\package.xml"
+
+
+    (Get-Content -Path "packages\com.servmask.traktor\meta\package.xml") | ForEach-Object {$_ -Replace "release-date", (Get-Date -Format yyyy-M-d)} | Set-Content -Path "packages\com.servmask.traktor\meta\package.xml"
+
+
+    C:\Qt\Tools\QtInstallerFramework\3.0\bin\binarycreator.exe -c config\config.xml -p packages Traktor.exe
+artifacts:
+- path: Traktor.exe
+  name: Traktor.exe
+deploy:
+- provider: GitHub
+  auth_token:
+    secure: aGMqBS0/Sxmw8f6nkZMH5yl4JUOPCdsZc++OEapEb+2lAw9EUMCUgFkxidGA8k+3
+  artifact: Traktor.exe
