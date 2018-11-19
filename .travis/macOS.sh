@@ -23,6 +23,6 @@ macdeployqt Traktor.app
 
 mkdir packages/com.servmask.traktor/data
 
-cp Traktor.app packages/com.servmask.traktor/data
+cp -r Traktor.app packages/com.servmask.traktor/data
 
 binarycreator -c config/config.xml -p packages Traktor
