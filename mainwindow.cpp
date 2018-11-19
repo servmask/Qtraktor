@@ -128,15 +128,11 @@ void MainWindow::showInGraphicalShell(const QString &pathIn)
     const QFileInfo fileInfo(pathIn);
 
 #if defined (Q_OS_WIN)
-        const FileName explorer = QProcessEnvironment::systemEnvironment().toStringList().searchInPath(QLatin1String("explorer.exe"));
-        if (explorer.isEmpty()) {
-            return;
-        }
         QStringList param;
         if (!fileInfo.isDir())
             param += QLatin1String("/select,");
         param += QDir::toNativeSeparators(fileInfo.canonicalFilePath());
-        QProcess::startDetached(explorer.toString(), param);
+        QProcess::startDetached("explorer", param);
 #endif
 
 #if defined (Q_OS_MAC)
