@@ -5,6 +5,8 @@
 #include <QMessageBox>
 #include <QProcessEnvironment>
 #include <QProcess>
+#include <QMimeData>
+#include <QDropEvent>
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent),
@@ -12,6 +14,7 @@ MainWindow::MainWindow(QWidget *parent) :
 {
   ui->setupUi(this);
   ui->progressBar->setVisible(false);
+  setAcceptDrops(true);
 }
 
 MainWindow::~MainWindow()
@@ -41,6 +44,40 @@ void MainWindow::openBackup()
       tr("Unable to open file: %1").arg(backupFilename),
       QMessageBox::StandardButton::Ok
     );
+    return;
+  }
+
+  ui->backupNameLabel->setText(fileInfo.fileName());
+  ui->extractBackupButton->setEnabled(true);
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+  if (event->mimeData()->hasUrls()) {
+    event->acceptProposedAction();
+  }
+}
+
+void MainWindow::dropEvent(QDropEvent *event)
+{
+  QList<QUrl> urls = event->mimeData()->urls();
+  if (urls.isEmpty()) {
+    return;
+  }
+  QString fileName = urls.first().toLocalFile();
+  if (backupFilename.isNull()) {
+    return;
+  }
+
+  QFileInfo fileInfo(backupFilename);
+
+  if (!fileInfo.isReadable()) {
+    QMessageBox::warning(
+        this,
+        tr("Unable to open file"),
+        tr("Unable to open file: %1").arg(backupFilename),
+        QMessageBox::StandardButton::Ok
+        );
     return;
   }
 

@@ -25,6 +25,10 @@ class MainWindow : public QMainWindow
     Ui::MainWindow *ui;
     QString backupFilename;
     void showInGraphicalShell(const QString &pathIn);
+
+  protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 };
 
 #endif // MAINWINDOW_H
