@@ -64,7 +64,8 @@ void MainWindow::dropEvent(QDropEvent *event)
   if (urls.isEmpty()) {
     return;
   }
-  QString fileName = urls.first().toLocalFile();
+
+  backupFilename = urls.first().toLocalFile();
   if (backupFilename.isNull()) {
     return;
   }
