@@ -1,0 +1,34 @@
+#include <windows.h>
+
+1 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName",        "ServMask, Inc."
+            VALUE "FileDescription",    "WPRESS Extractor"
+            VALUE "FileVersion",        "1.0.0.0"
+            VALUE "InternalName",       "Traktor"
+            VALUE "LegalCopyright",     "ServMask, Inc."
+            VALUE "OriginalFilename",   "Traktor.exe"
+            VALUE "ProductName",        "Traktor"
+            VALUE "ProductVersion",     "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1252
+    END
+END
+
+IDI_ICON1               ICON    DISCARDABLE     "icons/traktor.ico"
+
+STRINGTABLE
+BEGIN
+    1 "wpress"
+    2 "WPRESS Backup File"
+    3 "Traktor.WPRESS"
+END 

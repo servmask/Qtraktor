@@ -16,9 +16,15 @@ class MainWindow : public QMainWindow
   public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+    bool event(QEvent *event) override;
+
+  protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
   public slots:
     void openBackup();
+    void openBackupFile(const QString &filename);
     void extractTo();
     void extractProgress(float percent);
 

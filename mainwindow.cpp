@@ -7,6 +7,10 @@
 #include <QProcess>
 #include "passworddialog.h"
 #include "cryptoutils.h"
+#include <QDragEnterEvent>
+#include <QMimeData>
+#include <QFileOpenEvent>
+#include <QDebug>
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent),
@@ -15,6 +19,7 @@ MainWindow::MainWindow(QWidget *parent) :
   ui->setupUi(this);
   ui->progressBar->setVisible(false);
   ui->logTextEdit->setVisible(false);
+  setAcceptDrops(true);
 }
 
 MainWindow::~MainWindow()
@@ -210,4 +215,62 @@ void MainWindow::showInGraphicalShell(const QString &pathIn)
       << QLatin1String("tell application \"Finder\" to activate");
   QProcess::execute(QLatin1String("/usr/bin/osascript"), scriptArgs);
 #endif
+}
+
+void MainWindow::openBackupFile(const QString &filename)
+{
+    qDebug() << "Opening backup file:" << filename;
+    backupFilename = filename;
+    QFileInfo fileInfo(backupFilename);
+
+    if (!fileInfo.isReadable()) {
+        qDebug() << "File not readable:" << filename;
+        QMessageBox::warning(this, tr("Unable to open file"),
+                           tr("Unable to open file: %1").arg(backupFilename),
+                           QMessageBox::StandardButton::Ok);
+        return;
+    }
+
+    qDebug() << "File is readable, setting up UI";
+    ui->backupNameLabel->setText(fileInfo.fileName());
+    ui->extractBackupButton->setEnabled(true);
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+    qDebug() << "dragEnterEvent triggered";
+    if (event->mimeData()->hasUrls()) {
+        QList<QUrl> urls = event->mimeData()->urls();
+        qDebug() << "URLs in drag:" << urls;
+        if (urls.count() == 1 && urls.first().toLocalFile().endsWith(".wpress")) {
+            qDebug() << "Accepting wpress file:" << urls.first().toLocalFile();
+            event->acceptProposedAction();
+        }
+    }
+}
+
+void MainWindow::dropEvent(QDropEvent *event)
+{
+    qDebug() << "dropEvent triggered";
+    QList<QUrl> urls = event->mimeData()->urls();
+    if (urls.count() == 1) {
+        QString file = urls.first().toLocalFile();
+        qDebug() << "Dropped file:" << file;
+        if (file.endsWith(".wpress")) {
+            openBackupFile(file);
+            event->acceptProposedAction();
+        }
+    }
+}
+
+bool MainWindow::event(QEvent *event)
+{
+    qDebug() << "Event type:" << event->type();
+    if (event->type() == QEvent::FileOpen) {
+        QFileOpenEvent *openEvent = static_cast<QFileOpenEvent *>(event);
+        qDebug() << "FileOpen event with file:" << openEvent->file();
+        openBackupFile(openEvent->file());
+        return true;
+    }
+    return QMainWindow::event(event);
 }

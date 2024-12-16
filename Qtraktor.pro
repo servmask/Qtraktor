@@ -97,3 +97,8 @@ ICON = icons/traktor.icns
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
+
+QMAKE_TARGET_COMPANY = "ServMask, Inc."
+QMAKE_TARGET_PRODUCT = "Traktor"
+QMAKE_TARGET_DESCRIPTION = "WPRESS Extractor"
+QMAKE_TARGET_COPYRIGHT = "ServMask, Inc."
