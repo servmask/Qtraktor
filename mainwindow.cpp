@@ -20,6 +20,9 @@ MainWindow::MainWindow(QWidget *parent) :
   ui->progressBar->setVisible(false);
   ui->logTextEdit->setVisible(false);
   setAcceptDrops(true);
+
+  dropOverlay = new DropOverlay(this);
+  dropOverlay->setGeometry(rect());
 }
 
 MainWindow::~MainWindow()
@@ -244,14 +247,23 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *event)
         qDebug() << "URLs in drag:" << urls;
         if (urls.count() == 1 && urls.first().toLocalFile().endsWith(".wpress")) {
             qDebug() << "Accepting wpress file:" << urls.first().toLocalFile();
+            dropOverlay->setVisible(true);
+            dropOverlay->raise();
             event->acceptProposedAction();
         }
     }
 }
 
+void MainWindow::dragLeaveEvent(QDragLeaveEvent *event)
+{
+    Q_UNUSED(event);
+    dropOverlay->setVisible(false);
+}
+
 void MainWindow::dropEvent(QDropEvent *event)
 {
     qDebug() << "dropEvent triggered";
+    dropOverlay->setVisible(false);
     QList<QUrl> urls = event->mimeData()->urls();
     if (urls.count() == 1) {
         QString file = urls.first().toLocalFile();
@@ -261,6 +273,12 @@ void MainWindow::dropEvent(QDropEvent *event)
             event->acceptProposedAction();
         }
     }
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    dropOverlay->setGeometry(rect());
 }
 
 bool MainWindow::event(QEvent *event)

@@ -73,6 +73,8 @@ SOURCES += \
         backupfile.cpp \
         cryptoutils.cpp \
         passworddialog.cpp \
+        appdelegate.cpp \
+        dropoverlay.cpp \
         $$BZIP2_DIR/blocksort.c \
         $$BZIP2_DIR/huffman.c \
         $$BZIP2_DIR/crctable.c \
@@ -85,7 +87,9 @@ HEADERS += \
         mainwindow.h \
         backupfile.h \
         cryptoutils.h \
-        passworddialog.h
+        passworddialog.h \
+        appdelegate.h \
+        dropoverlay.h
 
 FORMS += \
         mainwindow.ui

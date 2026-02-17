@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include "backupfile.h"
 #include "passworddialog.h"
+#include "dropoverlay.h"
 
 namespace Ui {
   class MainWindow;
@@ -20,7 +21,9 @@ class MainWindow : public QMainWindow
 
   protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
   public slots:
     void openBackup();
@@ -30,6 +33,7 @@ class MainWindow : public QMainWindow
 
   private:
     Ui::MainWindow *ui;
+    DropOverlay *dropOverlay;
     QString backupFilename;
     QString filePassword;
     void showInGraphicalShell(const QString &pathIn);
