@@ -2,6 +2,7 @@
 #include <QPainter>
 #include <QPen>
 #include <QDragEnterEvent>
+#include <QMouseEvent>
 #include <QMimeData>
 #include <QUrl>
 
@@ -9,8 +10,16 @@ DropOverlay::DropOverlay(QWidget *parent)
     : QWidget(parent)
 {
     setAcceptDrops(true);
+    setCursor(Qt::PointingHandCursor);
     setMinimumHeight(140);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+}
+
+void DropOverlay::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton) {
+        emit clicked();
+    }
 }
 
 void DropOverlay::setHighlighted(bool highlighted)

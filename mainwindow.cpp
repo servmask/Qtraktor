@@ -19,6 +19,7 @@ MainWindow::MainWindow(QWidget *parent) :
   ui->logTextEdit->setVisible(false);
 
   connect(ui->dropZone, &DropOverlay::fileDropped, this, &MainWindow::openBackupFile);
+  connect(ui->dropZone, &DropOverlay::clicked, this, &MainWindow::openBackup);
   ui->clearButton->setVisible(false);
 }
 
