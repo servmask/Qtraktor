@@ -7,8 +7,6 @@
 #include <QProcess>
 #include "passworddialog.h"
 #include "cryptoutils.h"
-#include <QDragEnterEvent>
-#include <QMimeData>
 #include <QFileOpenEvent>
 #include <QDebug>
 
@@ -19,10 +17,9 @@ MainWindow::MainWindow(QWidget *parent) :
   ui->setupUi(this);
   ui->progressBar->setVisible(false);
   ui->logTextEdit->setVisible(false);
-  setAcceptDrops(true);
 
-  dropOverlay = new DropOverlay(this);
-  dropOverlay->setGeometry(rect());
+  connect(ui->dropZone, &DropOverlay::fileDropped, this, &MainWindow::openBackupFile);
+  ui->clearButton->setVisible(false);
 }
 
 MainWindow::~MainWindow()
@@ -55,9 +52,19 @@ void MainWindow::openBackup()
     return;
   }
 
-  ui->backupNameLabel->setText(fileInfo.fileName());
-  ui->extractBackupButton->setEnabled(true);
+  openBackupFile(backupFilename);
   filePassword.clear(); // Reset password when opening new file
+}
+
+void MainWindow::clearFile()
+{
+  backupFilename.clear();
+  filePassword.clear();
+  ui->dropZone->setFileName(QString());
+  ui->extractBackupButton->setEnabled(false);
+  ui->clearButton->setVisible(false);
+  ui->progressBar->setVisible(false);
+  ui->logTextEdit->setVisible(false);
 }
 
 void MainWindow::extractTo()
@@ -183,7 +190,7 @@ void MainWindow::extractTo()
     );
   } else {
     ui->progressBar->setVisible(false);
-    ui->backupNameLabel->setText(tr("Extracted backup in %1").arg(extractTo.path()));
+    ui->dropZone->setFileName(tr("Extracted backup in %1").arg(extractTo.path()));
     ui->extractBackupButton->setDisabled(true);
     showInGraphicalShell(extractTo.path());
   }
@@ -235,50 +242,9 @@ void MainWindow::openBackupFile(const QString &filename)
     }
 
     qDebug() << "File is readable, setting up UI";
-    ui->backupNameLabel->setText(fileInfo.fileName());
+    ui->dropZone->setFileName(fileInfo.fileName());
     ui->extractBackupButton->setEnabled(true);
-}
-
-void MainWindow::dragEnterEvent(QDragEnterEvent *event)
-{
-    qDebug() << "dragEnterEvent triggered";
-    if (event->mimeData()->hasUrls()) {
-        QList<QUrl> urls = event->mimeData()->urls();
-        qDebug() << "URLs in drag:" << urls;
-        if (urls.count() == 1 && urls.first().toLocalFile().endsWith(".wpress")) {
-            qDebug() << "Accepting wpress file:" << urls.first().toLocalFile();
-            dropOverlay->setVisible(true);
-            dropOverlay->raise();
-            event->acceptProposedAction();
-        }
-    }
-}
-
-void MainWindow::dragLeaveEvent(QDragLeaveEvent *event)
-{
-    Q_UNUSED(event);
-    dropOverlay->setVisible(false);
-}
-
-void MainWindow::dropEvent(QDropEvent *event)
-{
-    qDebug() << "dropEvent triggered";
-    dropOverlay->setVisible(false);
-    QList<QUrl> urls = event->mimeData()->urls();
-    if (urls.count() == 1) {
-        QString file = urls.first().toLocalFile();
-        qDebug() << "Dropped file:" << file;
-        if (file.endsWith(".wpress")) {
-            openBackupFile(file);
-            event->acceptProposedAction();
-        }
-    }
-}
-
-void MainWindow::resizeEvent(QResizeEvent *event)
-{
-    QMainWindow::resizeEvent(event);
-    dropOverlay->setGeometry(rect());
+    ui->clearButton->setVisible(true);
 }
 
 bool MainWindow::event(QEvent *event)

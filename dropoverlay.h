@@ -9,9 +9,21 @@ class DropOverlay : public QWidget
 
   public:
     explicit DropOverlay(QWidget *parent = nullptr);
+    void setHighlighted(bool highlighted);
+    void setFileName(const QString &name);
+
+  signals:
+    void fileDropped(const QString &filePath);
 
   protected:
     void paintEvent(QPaintEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+
+  private:
+    bool m_highlighted = false;
+    QString m_fileName;
 };
 
 #endif // DROPOVERLAY_H

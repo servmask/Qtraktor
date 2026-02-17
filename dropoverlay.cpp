@@ -1,12 +1,62 @@
 #include "dropoverlay.h"
 #include <QPainter>
 #include <QPen>
+#include <QDragEnterEvent>
+#include <QMimeData>
+#include <QUrl>
 
 DropOverlay::DropOverlay(QWidget *parent)
     : QWidget(parent)
 {
-    setAttribute(Qt::WA_TransparentForMouseEvents);
-    setVisible(false);
+    setAcceptDrops(true);
+    setMinimumHeight(140);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+}
+
+void DropOverlay::setHighlighted(bool highlighted)
+{
+    m_highlighted = highlighted;
+    update();
+}
+
+void DropOverlay::setFileName(const QString &name)
+{
+    m_fileName = name;
+    update();
+}
+
+void DropOverlay::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls()) {
+        QList<QUrl> urls = event->mimeData()->urls();
+        if (urls.count() == 1 && urls.first().toLocalFile().endsWith(".wpress")) {
+            setHighlighted(true);
+            event->acceptProposedAction();
+            return;
+        }
+    }
+    event->ignore();
+}
+
+void DropOverlay::dragLeaveEvent(QDragLeaveEvent *event)
+{
+    Q_UNUSED(event);
+    setHighlighted(false);
+}
+
+void DropOverlay::dropEvent(QDropEvent *event)
+{
+    setHighlighted(false);
+    QList<QUrl> urls = event->mimeData()->urls();
+    if (urls.count() == 1) {
+        QString file = urls.first().toLocalFile();
+        if (file.endsWith(".wpress")) {
+            emit fileDropped(file);
+            event->acceptProposedAction();
+            return;
+        }
+    }
+    event->ignore();
 }
 
 void DropOverlay::paintEvent(QPaintEvent *event)
@@ -16,39 +66,63 @@ void DropOverlay::paintEvent(QPaintEvent *event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
-    // Semi-transparent background
-    painter.fillRect(rect(), QColor(0, 0, 0, 160));
+    bool hasFile = !m_fileName.isEmpty();
+
+    // Background: gray when empty, blue tint when file loaded
+    QColor bgColor;
+    QColor borderColor;
+    if (m_highlighted) {
+        bgColor = QColor(40, 80, 130, 80);
+        borderColor = QColor(80, 160, 240);
+    } else if (hasFile) {
+        bgColor = QColor(30, 60, 110, 50);
+        borderColor = QColor(80, 160, 240);
+    } else {
+        bgColor = QColor(120, 120, 120, 40);
+        borderColor = QColor(160, 160, 160);
+    }
+    painter.fillRect(rect(), bgColor);
 
     // Dashed border
-    QPen borderPen(QColor(100, 180, 255), 3, Qt::DashLine);
-    borderPen.setDashPattern({8, 6});
+    QPen borderPen(borderColor, 2, Qt::DashLine);
+    borderPen.setDashPattern({8, 5});
     painter.setPen(borderPen);
-    int m = 16;
-    painter.drawRoundedRect(rect().adjusted(m, m, -m, -m), 12, 12);
+    int m = 10;
+    painter.drawRoundedRect(rect().adjusted(m, m, -m, -m), 10, 10);
 
-    // Icon: draw a simple upload arrow
     QPoint center = rect().center();
-    int arrowSize = 24;
-    int arrowY = center.y() - 16;
+    QRect inner = rect().adjusted(m + 16, m + 8, -(m + 16), -(m + 8));
 
-    QPen iconPen(QColor(100, 180, 255), 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-    painter.setPen(iconPen);
+    if (hasFile) {
+        // File loaded state: show filename with word wrap
+        QFont font = painter.font();
+        font.setPointSize(11);
+        font.setBold(true);
+        painter.setFont(font);
+        painter.setPen(QColor(80, 160, 240));
+        painter.drawText(inner, Qt::AlignCenter | Qt::TextWordWrap, m_fileName);
+    } else {
+        // Empty state: show upload icon + text
+        int arrowSize = 20;
+        int arrowY = center.y() - 14;
 
-    // Arrow shaft
-    painter.drawLine(center.x(), arrowY - arrowSize, center.x(), arrowY + arrowSize);
-    // Arrow head
-    painter.drawLine(center.x(), arrowY - arrowSize,
-                     center.x() - 14, arrowY - arrowSize + 14);
-    painter.drawLine(center.x(), arrowY - arrowSize,
-                     center.x() + 14, arrowY - arrowSize + 14);
+        QPen iconPen(borderColor, 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        painter.setPen(iconPen);
 
-    // Text below arrow
-    QFont font = painter.font();
-    font.setPointSize(14);
-    font.setBold(true);
-    painter.setFont(font);
-    painter.setPen(QColor(255, 255, 255));
+        // Arrow shaft
+        painter.drawLine(center.x(), arrowY - arrowSize, center.x(), arrowY + arrowSize);
+        // Arrow head
+        painter.drawLine(center.x(), arrowY - arrowSize,
+                         center.x() - 12, arrowY - arrowSize + 12);
+        painter.drawLine(center.x(), arrowY - arrowSize,
+                         center.x() + 12, arrowY - arrowSize + 12);
 
-    QRect textRect(0, center.y() + 28, width(), 40);
-    painter.drawText(textRect, Qt::AlignHCenter | Qt::AlignTop, tr("Drop .wpress file here"));
+        // Text
+        QFont font = painter.font();
+        font.setPointSize(11);
+        painter.setFont(font);
+        painter.setPen(borderColor);
+        QRect textRect(0, center.y() + 22, width(), 30);
+        painter.drawText(textRect, Qt::AlignHCenter | Qt::AlignTop, tr("Drop .wpress file here"));
+    }
 }
