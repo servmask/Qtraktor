@@ -121,8 +121,8 @@ jobs:
             --window-size 576 384 \
             --icon-size 64 \
             --text-size 14 \
-            --icon "Traktor.app" 125 200 \
-            --app-drop-link 410 200 \
+            --icon "Traktor.app" 125 195 \
+            --app-drop-link 410 195 \
             --no-internet-enable \
             "Traktor-${{ env.VERSION }}.dmg" \
             "Traktor.app"
@@ -147,7 +147,6 @@ jobs:
           path: Traktor-${{ env.VERSION }}.dmg
 
   build-windows:
-    if: false
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -222,7 +221,6 @@ jobs:
           path: Traktor-${{ env.VERSION }}.exe
 
   build-linux:
-    if: false
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -280,7 +278,7 @@ jobs:
           path: Traktor-x86_64-${{ env.VERSION }}.AppImage
 
   upload:
-    if: false
+    if: github.event_name == 'release'
     needs: [package-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
