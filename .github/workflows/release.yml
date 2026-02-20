@@ -97,6 +97,9 @@ jobs:
           done
           codesign --force --sign - Universal-Traktor.app
 
+      - name: Rename app before checkout
+        run: mv Universal-Traktor.app /tmp/Traktor.app
+
       - uses: actions/checkout@v4
         with:
           sparse-checkout: |
@@ -107,7 +110,7 @@ jobs:
       - name: Create DMG
         run: |
           brew install create-dmg fileicon
-          mv Universal-Traktor.app Traktor.app
+          mv /tmp/Traktor.app Traktor.app
 
           # Create DMG with background, icon layout, and Applications symlink
           create-dmg \
