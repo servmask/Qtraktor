@@ -7,7 +7,6 @@
 #include <QProcess>
 #include "passworddialog.h"
 #include "cryptoutils.h"
-#include <QFileOpenEvent>
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent),
@@ -229,27 +228,18 @@ void MainWindow::showInGraphicalShell(const QString &pathIn)
 
 void MainWindow::openBackupFile(const QString &filename)
 {
-    backupFilename = filename;
-    QFileInfo fileInfo(backupFilename);
+    QFileInfo fileInfo(filename);
 
     if (!fileInfo.isReadable()) {
         QMessageBox::warning(this, tr("Unable to open file"),
-                           tr("Unable to open file: %1").arg(backupFilename),
+                           tr("Unable to open file: %1").arg(filename),
                            QMessageBox::StandardButton::Ok);
         return;
     }
 
+    backupFilename = filename;
     ui->dropZone->setFileName(fileInfo.fileName());
     ui->extractBackupButton->setEnabled(true);
     ui->clearButton->setVisible(true);
 }
 
-bool MainWindow::event(QEvent *event)
-{
-    if (event->type() == QEvent::FileOpen) {
-        QFileOpenEvent *openEvent = static_cast<QFileOpenEvent *>(event);
-        openBackupFile(openEvent->file());
-        return true;
-    }
-    return QMainWindow::event(event);
-}
