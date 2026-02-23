@@ -39,6 +39,9 @@
     </item>
     <item>
      <layout class="QHBoxLayout" name="layoutButtons">
+      <property name="spacing">
+       <number>24</number>
+      </property>
       <item>
        <widget class="QPushButton" name="openBackupButton">
         <property name="sizePolicy">

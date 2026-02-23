@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QString>
 #include <QDateTime>
+#include <zlib.h>
 #include "cryptoutils.h"
 
 class BackupFile : public QFile
@@ -17,9 +18,9 @@ public:
   explicit BackupFile(const QString& filename, const QString& password = QString())
     : QFile(filename),
       bytesRead(0),
-      eof(kHeaderSize, '\0'),
       filePassword(password),
       isEncrypted(false),
+      isV2(false),
       compressionType(COMPRESSION_NONE)
   {}
 
@@ -51,9 +52,12 @@ public:
       return false;
     }
 
-    if (read(kHeaderSize) != eof) {
+    const QByteArray eofBlock = read(kHeaderSize);
+    if (!isEofBlock(eofBlock)) {
       return false;
     }
+
+    isV2 = isV2EofBlock(eofBlock);
 
     if (!seek(0)) {
       return false;
@@ -70,6 +74,10 @@ public:
 
     if (compressionType == COMPRESSION_NONE && !isEncrypted) {
       loadConfig();
+    }
+
+    if (isV2) {
+      verifyArchiveCrc();
     }
 
     auto log = [&](const QString& msg, bool isError = false) {
@@ -135,6 +143,13 @@ public:
       }
 
       out.close();
+
+      if (isV2 && !info.crc32.isEmpty()) {
+        const QString actualCrc = computeFileCrc32(fullPath);
+        if (!actualCrc.isEmpty() && actualCrc != info.crc32) {
+          log(QString("CRC mismatch for file '%1': expected %2, got %3").arg(info.fileName, info.crc32, actualCrc), true);
+        }
+      }
     }
 
     log("Unexpected end of backup file archive.", true);
@@ -164,11 +179,13 @@ protected:
 
 private:
   static constexpr qint64 kHeaderSize = 4377;
+  static constexpr qint64 kCrcChunkSize = 524288;
 
   struct HeaderInfo
   {
     QString fileName;
     QString filePath;
+    QString crc32;
     qint64 fileSize = 0;
     bool isEof = false;
   };
@@ -182,7 +199,7 @@ private:
       return false;
     }
 
-    if (header == eof) {
+    if (isEofBlock(header)) {
       outInfo.isEof = true;
       return true;
     }
@@ -198,7 +215,13 @@ private:
     }
     outInfo.fileSize = fileSize;
 
-    outInfo.filePath = parseNullTerminatedString(header, 281, 4096);
+    if (isV2) {
+      outInfo.filePath = parseNullTerminatedString(header, 281, 4088);
+      outInfo.crc32 = parseNullTerminatedString(header, 4369, 8);
+    } else {
+      outInfo.filePath = parseNullTerminatedString(header, 281, 4096);
+    }
+
     return true;
   }
 
@@ -210,6 +233,79 @@ private:
       bytes = bytes.left(nullPos);
     }
     return QString::fromUtf8(bytes.trimmed());
+  }
+
+  static bool isEofBlock(const QByteArray& block)
+  {
+    if (block.size() != kHeaderSize) {
+      return false;
+    }
+    if (isV2EofBlock(block)) {
+      return true;
+    }
+    return block == QByteArray(kHeaderSize, '\0');
+  }
+
+  static bool isV2EofBlock(const QByteArray& block)
+  {
+    return block.startsWith("--AI1WM.");
+  }
+
+  void verifyArchiveCrc()
+  {
+    const qint64 dataSize = size() - kHeaderSize;
+    if (dataSize <= 0) {
+      return;
+    }
+
+    // Read EOF block to extract expected CRC: "--AI1WM.xxxxxxxx.EOF--"
+    if (!seek(size() - kHeaderSize)) {
+      return;
+    }
+    const QByteArray eofBlock = QFile::read(kHeaderSize);
+    const QString expectedCrc = QString::fromLatin1(eofBlock.mid(8, 8));
+
+    if (!seek(0)) {
+      return;
+    }
+
+    uLong crc = ::crc32(0L, Z_NULL, 0);
+    qint64 remaining = dataSize;
+
+    while (remaining > 0) {
+      const qint64 toRead = qMin(remaining, kCrcChunkSize);
+      const QByteArray chunk = QFile::read(toRead);
+      if (chunk.isEmpty()) {
+        break;
+      }
+      crc = ::crc32(crc, reinterpret_cast<const Bytef*>(chunk.constData()), chunk.size());
+      remaining -= chunk.size();
+    }
+
+    const QString actualCrc = QString::asprintf("%08x", static_cast<unsigned int>(crc));
+    if (actualCrc != expectedCrc) {
+      emit logMessage(QString("Archive CRC mismatch: expected %1, got %2. Archive may be corrupted.").arg(expectedCrc, actualCrc));
+    }
+
+    seek(0);
+  }
+
+  static QString computeFileCrc32(const QString& filePath)
+  {
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+      return QString();
+    }
+
+    uLong crc = ::crc32(0L, Z_NULL, 0);
+
+    while (!file.atEnd()) {
+      const QByteArray chunk = file.read(kCrcChunkSize);
+      crc = ::crc32(crc, reinterpret_cast<const Bytef*>(chunk.constData()), chunk.size());
+    }
+
+    file.close();
+    return QString::asprintf("%08x", static_cast<unsigned int>(crc));
   }
 
   bool readExact(qint64 sizeToRead, QByteArray& out)
@@ -236,9 +332,9 @@ private:
 
 private:
   qint64 bytesRead;
-  QByteArray eof;
   QString filePassword;
   bool isEncrypted;
+  bool isV2;
   CompressionType compressionType;
 };
 
