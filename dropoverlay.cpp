@@ -38,7 +38,7 @@ void DropOverlay::dragEnterEvent(QDragEnterEvent *event)
 {
     if (event->mimeData()->hasUrls()) {
         QList<QUrl> urls = event->mimeData()->urls();
-        if (urls.count() == 1 && urls.first().toLocalFile().endsWith(".wpress")) {
+        if (urls.count() == 1 && urls.first().toLocalFile().endsWith(".wpress", Qt::CaseInsensitive)) {
             setHighlighted(true);
             event->acceptProposedAction();
             return;
@@ -59,7 +59,7 @@ void DropOverlay::dropEvent(QDropEvent *event)
     QList<QUrl> urls = event->mimeData()->urls();
     if (urls.count() == 1) {
         QString file = urls.first().toLocalFile();
-        if (file.endsWith(".wpress")) {
+        if (file.endsWith(".wpress", Qt::CaseInsensitive)) {
             emit fileDropped(file);
             event->acceptProposedAction();
             return;

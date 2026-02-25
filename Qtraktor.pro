@@ -96,6 +96,7 @@ FORMS += \
 
 RC_ICONS = icons/traktor.ico
 ICON = icons/traktor.icns
+macx: QMAKE_INFO_PLIST = Info.plist
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
