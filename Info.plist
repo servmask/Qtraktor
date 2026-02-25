@@ -26,7 +26,7 @@
                 <string>wpress</string>
             </array>
             <key>CFBundleTypeIconFile</key>
-            <string>traktor.icns</string>
+            <string>file.icns</string>
             <key>CFBundleTypeName</key>
             <string>WPRESS Backup File</string>
             <key>CFBundleTypeRole</key>
@@ -50,6 +50,8 @@
             <array>
                 <string>public.data</string>
             </array>
+            <key>UTTypeIconFile</key>
+            <string>file.icns</string>
             <key>UTTypeTagSpecification</key>
             <dict>
                 <key>public.filename-extension</key>
