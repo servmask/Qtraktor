@@ -7,4 +7,5 @@
     <Licenses>
         <License name="GPLv3" file="LICENSE" />
     </Licenses>
+    <Script>installscript.qs</Script>
 </Package>
