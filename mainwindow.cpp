@@ -6,9 +6,6 @@
 #include <QProcess>
 #include "passworddialog.h"
 #include "cryptoutils.h"
-#include <QFileOpenEvent>
-#include <QDragEnterEvent>
-#include <QMimeData>
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent),
@@ -17,8 +14,6 @@ MainWindow::MainWindow(QWidget *parent) :
   ui->setupUi(this);
   ui->progressBar->setVisible(false);
   ui->logTextEdit->setVisible(false);
-  setAcceptDrops(true);
-
   connect(ui->dropZone, &DropOverlay::fileDropped, this, &MainWindow::openBackupFile);
   connect(ui->dropZone, &DropOverlay::clicked, this, &MainWindow::openBackup);
   ui->clearButton->setVisible(false);
@@ -254,14 +249,4 @@ void MainWindow::openBackupFile(const QString &filename)
     ui->dropZone->setFileName(fileInfo.fileName());
     ui->extractBackupButton->setEnabled(true);
     ui->clearButton->setVisible(true);
-}
-
-bool MainWindow::event(QEvent *event)
-{
-    if (event->type() == QEvent::FileOpen) {
-        QFileOpenEvent *openEvent = static_cast<QFileOpenEvent *>(event);
-        openBackupFile(openEvent->file());
-        return true;
-    }
-    return QMainWindow::event(event);
 }

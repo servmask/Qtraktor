@@ -16,8 +16,6 @@ class MainWindow : public QMainWindow
   public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
-    bool event(QEvent *event) override;
-
   public slots:
     void openBackup();
     void openBackupFile(const QString &filename);

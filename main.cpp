@@ -5,7 +5,6 @@
 #include <QCommandLineParser>
 #include <QFileInfo>
 #include <QDir>
-#include <QTimer>
 #include <cstdio>
 
 #ifdef Q_OS_WIN
@@ -160,12 +159,6 @@ int main(int argc, char *argv[])
         w.setPassword(password);
 
     w.show();
-
-    if (!source.isEmpty() && !destination.isEmpty()) {
-        QTimer::singleShot(0, &w, [&w, destination]() {
-            w.extractToPath(destination);
-        });
-    }
 
     return QApplication::exec();
 }
