@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QString>
 #include <QDateTime>
+#include <QRegularExpression>
 #include <zlib.h>
 #include "cryptoutils.h"
 
@@ -76,8 +77,8 @@ public:
       loadConfig();
     }
 
-    if (isV2) {
-      verifyArchiveCrc();
+    if (isV2 && !verifyArchiveCrc()) {
+      return false;
     }
 
     auto log = [&](const QString& msg, bool isError = false) {
@@ -248,25 +249,42 @@ private:
 
   static bool isV2EofBlock(const QByteArray& block)
   {
-    return block.startsWith("--AI1WM.");
+    if (block.size() != kHeaderSize) {
+      return false;
+    }
+
+    // v2 EOF: a255(null) + a14(size) + a4100(null) + a8(crc)
+    // Filename must be empty (all null) to distinguish from file headers
+    if (block.left(255) != QByteArray(255, '\0')) {
+      return false;
+    }
+
+    const QString sizeField = parseNullTerminatedString(block, 255, 14);
+    if (sizeField.isEmpty()) {
+      return false;
+    }
+
+    const QByteArray crcField = block.mid(4369, 8);
+    static const QRegularExpression hexPattern("^[0-9a-fA-F]{8}$");
+    return hexPattern.match(QString::fromLatin1(crcField)).hasMatch();
   }
 
-  void verifyArchiveCrc()
+  bool verifyArchiveCrc()
   {
     const qint64 dataSize = size() - kHeaderSize;
     if (dataSize <= 0) {
-      return;
+      return true;
     }
 
-    // Read EOF block to extract expected CRC: "--AI1WM.xxxxxxxx.EOF--"
+    // Read EOF block to extract expected CRC (last 8 bytes)
     if (!seek(size() - kHeaderSize)) {
-      return;
+      return true;
     }
     const QByteArray eofBlock = QFile::read(kHeaderSize);
-    const QString expectedCrc = QString::fromLatin1(eofBlock.mid(8, 8));
+    const QString expectedCrc = QString::fromLatin1(eofBlock.mid(4369, 8));
 
     if (!seek(0)) {
-      return;
+      return true;
     }
 
     uLong crc = ::crc32(0L, Z_NULL, 0);
@@ -284,10 +302,12 @@ private:
 
     const QString actualCrc = QString::asprintf("%08x", static_cast<unsigned int>(crc));
     if (actualCrc != expectedCrc) {
-      emit logMessage(QString("Archive CRC mismatch: expected %1, got %2. Archive may be corrupted.").arg(expectedCrc, actualCrc));
+      emit error(QString("This backup file is damaged and can't be extracted.<br />Try downloading or transferring the file again.<br /><br /><b>Reason:</b> File integrity check failed (CRC mismatch). <a href=\"https://help.servmask.com/knowledgebase/import-failed-crc-mismatch/\">Technical details</a>"));
+      return false;
     }
 
     seek(0);
+    return true;
   }
 
   static QString computeFileCrc32(const QString& filePath)

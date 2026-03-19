@@ -184,17 +184,20 @@ void MainWindow::extractToPath(const QString &destDir)
     filePassword.clear();
     extractTo.removeRecursively();
 
-    QString errorMessage = tr(
-      "The backup file extraction failed. The file may be corrupted or the password may be incorrect.");
+    QString errorMessage;
     if (!lastError.isEmpty()) {
-      errorMessage += "\n\n" + lastError;
+      errorMessage = lastError;
+    } else {
+      errorMessage = tr("The backup file extraction failed. The file may be corrupted or the password may be incorrect.");
     }
-    QMessageBox::warning(
-      this,
-      tr("Extraction failed"),
-      errorMessage,
-      QMessageBox::StandardButton::Ok
-    );
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(tr("Extraction failed"));
+    msgBox.setIcon(QMessageBox::Warning);
+    msgBox.setTextFormat(Qt::RichText);
+    msgBox.setTextInteractionFlags(Qt::TextBrowserInteraction);
+    msgBox.setText(errorMessage);
+    msgBox.setStandardButtons(QMessageBox::Ok);
+    msgBox.exec();
   } else {
     ui->progressBar->setVisible(false);
     ui->dropZone->setFileName(tr("Extracted backup in %1").arg(extractTo.path()));
