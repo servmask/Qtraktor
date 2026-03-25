@@ -3,6 +3,7 @@
 #include <QFileDialog>
 #include <QIODevice>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QProcess>
 #include "passworddialog.h"
 #include "cryptoutils.h"
@@ -88,6 +89,34 @@ void MainWindow::extractToPath(const QString &destDir)
 {
   QFileInfo fileInfo(backupFilename);
   QDir extractTo(destDir + "/" + fileInfo.baseName());
+
+  if (extractTo.exists()) {
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(tr("Directory already exists"));
+    msgBox.setText(tr("The directory %1 already exists.").arg(extractTo.path()));
+    QPushButton *wipeBtn = msgBox.addButton(tr("Wipe && Extract"), QMessageBox::DestructiveRole);
+    QPushButton *newBtn = msgBox.addButton(tr("Create New Folder"), QMessageBox::ActionRole);
+    msgBox.addButton(QMessageBox::Cancel);
+    msgBox.exec();
+
+    if (msgBox.clickedButton() == wipeBtn) {
+      if (!extractTo.removeRecursively()) {
+        QMessageBox::warning(this, tr("Unable to remove directory"),
+          tr("Unable to remove directory %1. Fix permissions and try again.").arg(extractTo.path()),
+          QMessageBox::StandardButton::Ok);
+        return;
+      }
+    } else if (msgBox.clickedButton() == newBtn) {
+      QString basePath = destDir + "/" + fileInfo.baseName();
+      int suffix = 1;
+      while (QDir(basePath + " (" + QString::number(suffix) + ")").exists()) {
+        suffix++;
+      }
+      extractTo = QDir(basePath + " (" + QString::number(suffix) + ")");
+    } else {
+      return;
+    }
+  }
 
   if (!QDir().mkdir(extractTo.path())) {
      QMessageBox::warning(
