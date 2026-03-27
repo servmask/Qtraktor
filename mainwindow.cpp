@@ -27,16 +27,18 @@ MainWindow::~MainWindow()
 
 void MainWindow::openBackup()
 {
-  backupFilename = QFileDialog::getOpenFileName(
+  QString selectedFile = QFileDialog::getOpenFileName(
     this,
     tr("Open a backup"),
     "",
     tr("WordPress backup (*.wpress)")
   );
 
-  if (backupFilename.isNull()) {
+  if (selectedFile.isNull()) {
     return;
   }
+
+  backupFilename = selectedFile;
 
   QFileInfo fileInfo(backupFilename);
 
@@ -109,8 +111,14 @@ void MainWindow::extractToPath(const QString &destDir)
     } else if (msgBox.clickedButton() == newBtn) {
       QString basePath = destDir + "/" + fileInfo.baseName();
       int suffix = 1;
-      while (QDir(basePath + " (" + QString::number(suffix) + ")").exists()) {
+      while (QDir(basePath + " (" + QString::number(suffix) + ")").exists() && suffix <= 100) {
         suffix++;
+      }
+      if (suffix > 100) {
+        QMessageBox::warning(this, tr("Too many directories"),
+          tr("Too many directories with the name %1. Remove some and try again.").arg(fileInfo.baseName()),
+          QMessageBox::StandardButton::Ok);
+        return;
       }
       extractTo = QDir(basePath + " (" + QString::number(suffix) + ")");
     } else {
