@@ -13,14 +13,6 @@
 #include <QTimer>
 #include <cstdio>
 
-static void debugLog(const QString &msg)
-{
-    QFile f("/tmp/traktor-debug.log");
-    if (f.open(QIODevice::Append | QIODevice::Text)) {
-        f.write((QDateTime::currentDateTime().toString("hh:mm:ss.zzz") + " " + msg + "\n").toUtf8());
-        f.close();
-    }
-}
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -223,7 +215,7 @@ int main(int argc, char *argv[])
         bool eventFilter(QObject *, QEvent *event) override {
             if (event->type() == QEvent::FileOpen) {
                 QFileOpenEvent *e = static_cast<QFileOpenEvent *>(event);
-                debugLog("StartupFilter: FileOpen event: " + e->file() + " decided=" + (*decided ? "true" : "false"));
+
                 if (!*decided) {
                     files->append(e->file());
                     return true;
@@ -233,23 +225,23 @@ int main(int argc, char *argv[])
         }
     };
 
-    debugLog("Installing StartupFilter, entering event loop");
+
     StartupFilter startupFilter(&pendingFiles, &decided);
     a.installEventFilter(&startupFilter);
 
     // Give macOS 300ms to deliver FileOpen events
     QTimer::singleShot(300, [&]() {
-        debugLog("Timer fired. pendingFiles count=" + QString::number(pendingFiles.size()));
+
         decided = true;
         a.removeEventFilter(&startupFilter);
 
         if (!pendingFiles.isEmpty()) {
-            debugLog("Auto-extract mode: " + pendingFiles.join(", "));
+
             extractor = new AutoExtractor(pendingFiles);
             AppDelegate *appDel = new AppDelegate(nullptr, extractor);
             a.installEventFilter(appDel);
         } else {
-            debugLog("GUI mode: no FileOpen events received");
+
             window = new MainWindow();
             AppDelegate *appDel = new AppDelegate(window);
             a.installEventFilter(appDel);

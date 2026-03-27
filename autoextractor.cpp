@@ -1,7 +1,7 @@
 #include "autoextractor.h"
 #include "dockprogress.h"
 #include <QApplication>
-#include <QDateTime>
+
 #include <QDesktopServices>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -14,14 +14,6 @@
 #include <QUrl>
 #include "passworddialog.h"
 
-static void debugLog(const QString &msg)
-{
-    QFile f("/tmp/traktor-debug.log");
-    if (f.open(QIODevice::Append | QIODevice::Text)) {
-        f.write((QDateTime::currentDateTime().toString("hh:mm:ss.zzz") + " [AE] " + msg + "\n").toUtf8());
-        f.close();
-    }
-}
 
 AutoExtractor::AutoExtractor(const QStringList &files, QObject *parent)
     : QObject(parent),
@@ -82,7 +74,7 @@ void AutoExtractor::onNewConnection()
 
 void AutoExtractor::processQueue()
 {
-    debugLog("processQueue: queue=" + QString::number(m_queue.size()) + " worker=" + (m_worker ? "active" : "null"));
+
     if (m_queue.isEmpty() && !m_worker) {
         m_shuttingDown = true;
         m_server->close();
@@ -128,7 +120,7 @@ void AutoExtractor::processQueue()
     }
 
     m_currentDestDir = resolveDestDir(m_currentFile);
-    debugLog("processQueue: file=" + m_currentFile + " destDir=" + m_currentDestDir);
+
     if (m_currentDestDir.isEmpty()) {
         QMessageBox::warning(nullptr, tr("Unable to create directory"),
                            tr("Unable to create extraction directory for %1").arg(m_currentFile));
@@ -222,7 +214,7 @@ void AutoExtractor::onWorkerError(const QString &message)
 
 void AutoExtractor::onWorkerFinished(bool success)
 {
-    debugLog("onWorkerFinished: success=" + QString(success ? "true" : "false"));
+
     m_pollTimer->stop();
     m_worker = nullptr;
     clearDockBadge();
