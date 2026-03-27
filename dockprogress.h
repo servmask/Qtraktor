@@ -3,10 +3,11 @@
 
 #include <QString>
 
-// macOS Dock tile badge for progress indication.
+// macOS platform integration.
 // On non-macOS platforms, these are no-ops.
 
 void setDockBadge(const QString &text);
 void clearDockBadge();
+void claimFileType();
 
 #endif // DOCKPROGRESS_H

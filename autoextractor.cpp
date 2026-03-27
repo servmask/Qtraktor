@@ -1,7 +1,10 @@
 #include "autoextractor.h"
 #include "dockprogress.h"
 #include <QApplication>
+#include <QDateTime>
 #include <QDesktopServices>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QDir>
 #include <QFileInfo>
 #include <QLocalSocket>
@@ -11,27 +14,34 @@
 #include <QUrl>
 #include "passworddialog.h"
 
+static void debugLog(const QString &msg)
+{
+    QFile f("/tmp/traktor-debug.log");
+    if (f.open(QIODevice::Append | QIODevice::Text)) {
+        f.write((QDateTime::currentDateTime().toString("hh:mm:ss.zzz") + " [AE] " + msg + "\n").toUtf8());
+        f.close();
+    }
+}
+
 AutoExtractor::AutoExtractor(const QStringList &files, QObject *parent)
     : QObject(parent),
       m_server(new QLocalServer(this)),
       m_worker(nullptr),
       m_progressDialog(nullptr),
       m_trayIcon(nullptr),
-      m_progressTimer(new QTimer(this)),
+      m_pollTimer(new QTimer(this)),
       m_shuttingDown(false)
 {
     m_queue = files;
-    m_progressTimer->setSingleShot(true);
-    connect(m_progressTimer, &QTimer::timeout, this, &AutoExtractor::onProgressTimeout);
+    m_pollTimer->setInterval(50); // poll 20 times/sec
+    connect(m_pollTimer, &QTimer::timeout, this, &AutoExtractor::pollProgress);
 
-    // Set up single-instance IPC server
     const QString socketName = "com.servmask.Traktor";
     QLocalServer::removeServer(socketName);
     if (m_server->listen(socketName)) {
         connect(m_server, &QLocalServer::newConnection, this, &AutoExtractor::onNewConnection);
     }
 
-    // Start processing after event loop begins
     QTimer::singleShot(0, this, &AutoExtractor::processQueue);
 }
 
@@ -63,7 +73,6 @@ void AutoExtractor::onNewConnection()
         const QString filePath = QString::fromUtf8(data).trimmed();
         if (!filePath.isEmpty() && filePath.endsWith(".wpress", Qt::CaseInsensitive)) {
             enqueueFile(filePath);
-            // If no worker is active, start processing
             if (!m_worker) {
                 processQueue();
             }
@@ -73,10 +82,12 @@ void AutoExtractor::onNewConnection()
 
 void AutoExtractor::processQueue()
 {
+    debugLog("processQueue: queue=" + QString::number(m_queue.size()) + " worker=" + (m_worker ? "active" : "null"));
     if (m_queue.isEmpty() && !m_worker) {
-        // All done, quit
         m_shuttingDown = true;
         m_server->close();
+        if (m_progressDialog)
+            m_progressDialog->hide();
         QApplication::quit();
         return;
     }
@@ -95,7 +106,6 @@ void AutoExtractor::processQueue()
         return;
     }
 
-    // Quick config check to determine if password is needed
     CheckResult config = ExtractionWorker::checkConfig(m_currentFile);
 
     if (!config.isValid) {
@@ -112,13 +122,13 @@ void AutoExtractor::processQueue()
         if (dialog.exec() == QDialog::Accepted) {
             password = dialog.getPassword();
         } else {
-            // User cancelled, skip this file
             QTimer::singleShot(0, this, &AutoExtractor::processQueue);
             return;
         }
     }
 
     m_currentDestDir = resolveDestDir(m_currentFile);
+    debugLog("processQueue: file=" + m_currentFile + " destDir=" + m_currentDestDir);
     if (m_currentDestDir.isEmpty()) {
         QMessageBox::warning(nullptr, tr("Unable to create directory"),
                            tr("Unable to create extraction directory for %1").arg(m_currentFile));
@@ -126,68 +136,83 @@ void AutoExtractor::processQueue()
         return;
     }
 
+    if (!m_progressDialog)
+        createProgressDialog();
+
+    m_progressLabel->setText(tr("Extracting \"%1\"").arg(fileInfo.fileName()));
+    m_progressBar->setValue(0);
+
+    if (!m_queue.isEmpty()) {
+        m_progressDialog->setWindowTitle(tr("Traktor (%1 more)").arg(m_queue.size()));
+    } else {
+        m_progressDialog->setWindowTitle(tr("Traktor"));
+    }
+
+    m_progressDialog->show();
+    m_progressDialog->raise();
+
     // Create and start the worker
     m_worker = new ExtractionWorker(m_currentFile, password, m_currentDestDir, this);
-    connect(m_worker, &ExtractionWorker::progress, this, &AutoExtractor::onWorkerProgress);
-    connect(m_worker, &ExtractionWorker::phaseChanged, this, &AutoExtractor::onWorkerPhaseChanged);
     connect(m_worker, &ExtractionWorker::extractionError, this, &AutoExtractor::onWorkerError);
     connect(m_worker, &ExtractionWorker::extractionFinished, this, &AutoExtractor::onWorkerFinished);
     connect(m_worker, &QThread::finished, m_worker, &QObject::deleteLater);
 
-    // Start 2-second timer for delayed progress window
-    m_progressTimer->start(2000);
-
+    m_pollTimer->start();
     m_worker->start();
 }
 
-void AutoExtractor::onProgressTimeout()
+void AutoExtractor::createProgressDialog()
 {
-    // Only show if worker is still running
+    m_progressDialog = new QDialog();
+    m_progressDialog->setWindowTitle(tr("Traktor"));
+    m_progressDialog->setWindowFlags(Qt::Window | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
+    m_progressDialog->setFixedWidth(380);
+
+    m_progressLabel = new QLabel;
+    m_progressBar = new QProgressBar;
+    m_progressBar->setRange(0, 100);
+    m_progressBar->setValue(0);
+    m_progressBar->setTextVisible(false);
+#ifdef Q_OS_MAC
+    // Qt 5 QProgressBar native rendering is broken on macOS 26+
+    m_progressBar->setFixedHeight(8);
+    m_progressBar->setStyleSheet(
+        "QProgressBar { border: none; border-radius: 4px; background: palette(midlight); }"
+        "QProgressBar::chunk { border-radius: 4px; background: palette(highlight); }"
+    );
+#endif
+
+    m_stopButton = new QPushButton(tr("Stop"));
+    connect(m_stopButton, &QPushButton::clicked, this, [this]() {
+        if (m_worker)
+            m_worker->abort();
+    });
+
+    QHBoxLayout *barRow = new QHBoxLayout;
+    barRow->setSpacing(8);
+    barRow->addWidget(m_progressBar, 1);
+    barRow->addWidget(m_stopButton);
+
+    QVBoxLayout *layout = new QVBoxLayout(m_progressDialog);
+    layout->addWidget(m_progressLabel);
+    layout->addLayout(barRow);
+}
+
+void AutoExtractor::pollProgress()
+{
     if (!m_worker)
         return;
 
-    if (!m_progressDialog) {
-        m_progressDialog = new QProgressDialog();
-        m_progressDialog->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint | Qt::CustomizeWindowHint | Qt::WindowCloseButtonHint);
-        m_progressDialog->setMinimumDuration(0);
-        m_progressDialog->setAutoClose(false);
-        m_progressDialog->setAutoReset(false);
-        m_progressDialog->setCancelButtonText(tr("Cancel"));
-        m_progressDialog->setMinimum(0);
-        m_progressDialog->setMaximum(100);
-
-        connect(m_progressDialog, &QProgressDialog::canceled, this, [this]() {
-            if (m_worker) {
-                m_worker->abort();
-            }
-        });
-    }
-
-    QFileInfo fi(m_currentFile);
-    m_progressDialog->setLabelText(tr("Extracting %1...").arg(fi.fileName()));
-
-    QString remaining;
-    if (!m_queue.isEmpty()) {
-        remaining = tr(" (%1 remaining)").arg(m_queue.size());
-    }
-    m_progressDialog->setWindowTitle(tr("Traktor%1").arg(remaining));
-    m_progressDialog->show();
-}
-
-void AutoExtractor::onWorkerProgress(float percent)
-{
-    const int pct = static_cast<int>(percent);
-    if (m_progressDialog && m_progressDialog->isVisible()) {
-        m_progressDialog->setValue(pct);
+    const int pct = static_cast<int>(m_worker->currentProgress());
+    if (m_progressBar) {
+        m_progressBar->setValue(pct);
     }
     setDockBadge(QString::number(pct) + "%");
 }
 
 void AutoExtractor::onWorkerPhaseChanged(const QString &phase)
 {
-    if (m_progressDialog && m_progressDialog->isVisible()) {
-        m_progressDialog->setLabelText(phase);
-    }
+    Q_UNUSED(phase);
 }
 
 void AutoExtractor::onWorkerError(const QString &message)
@@ -197,7 +222,8 @@ void AutoExtractor::onWorkerError(const QString &message)
 
 void AutoExtractor::onWorkerFinished(bool success)
 {
-    m_progressTimer->stop();
+    debugLog("onWorkerFinished: success=" + QString(success ? "true" : "false"));
+    m_pollTimer->stop();
     m_worker = nullptr;
     clearDockBadge();
 
@@ -206,14 +232,8 @@ void AutoExtractor::onWorkerFinished(bool success)
     }
 
     if (success) {
-        // Open the extracted folder
         QDesktopServices::openUrl(QUrl::fromLocalFile(m_currentDestDir));
-
-        // Show notification
-        showNotification(tr("Extraction Complete"),
-                        tr("%1 extracted successfully.").arg(QFileInfo(m_currentFile).fileName()));
     } else {
-        // Clean up partial directory
         QDir(m_currentDestDir).removeRecursively();
 
         if (!m_lastError.isEmpty()) {
@@ -232,23 +252,13 @@ void AutoExtractor::onWorkerFinished(bool success)
     m_currentFile.clear();
     m_currentDestDir.clear();
 
-    // Process next in queue
     QTimer::singleShot(0, this, &AutoExtractor::processQueue);
 }
 
 void AutoExtractor::showNotification(const QString &title, const QString &message)
 {
-    if (!m_trayIcon) {
-        m_trayIcon = new QSystemTrayIcon(this);
-        m_trayIcon->setIcon(QApplication::windowIcon());
-    }
-
-    if (QSystemTrayIcon::supportsMessages()) {
-        m_trayIcon->show();
-        m_trayIcon->showMessage(title, message, QSystemTrayIcon::Information, 5000);
-        // Hide tray icon after notification is shown to keep app invisible
-        QTimer::singleShot(6000, m_trayIcon, &QSystemTrayIcon::hide);
-    }
+    Q_UNUSED(title);
+    Q_UNUSED(message);
 }
 
 QString AutoExtractor::resolveDestDir(const QString &sourceFilePath)
@@ -256,7 +266,6 @@ QString AutoExtractor::resolveDestDir(const QString &sourceFilePath)
     QFileInfo fi(sourceFilePath);
     QString baseDir = fi.absolutePath();
 
-    // Check if source directory is writable
     if (!QFileInfo(baseDir).isWritable()) {
         baseDir = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
         if (baseDir.isEmpty())
@@ -266,7 +275,6 @@ QString AutoExtractor::resolveDestDir(const QString &sourceFilePath)
     QString destPath = baseDir + "/" + fi.baseName();
 
     if (QDir(destPath).exists()) {
-        // Silently create numbered variant
         int suffix = 1;
         while (QDir(destPath + " (" + QString::number(suffix) + ")").exists() && suffix <= 100) {
             suffix++;

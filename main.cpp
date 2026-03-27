@@ -2,13 +2,25 @@
 #include "appdelegate.h"
 #include "autoextractor.h"
 #include "backupfile.h"
+#include "dockprogress.h"
 #include "extractionworker.h"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QFileInfo>
 #include <QDir>
+#include <QFileOpenEvent>
 #include <QLocalSocket>
+#include <QTimer>
 #include <cstdio>
+
+static void debugLog(const QString &msg)
+{
+    QFile f("/tmp/traktor-debug.log");
+    if (f.open(QIODevice::Append | QIODevice::Text)) {
+        f.write((QDateTime::currentDateTime().toString("hh:mm:ss.zzz") + " " + msg + "\n").toUtf8());
+        f.close();
+    }
+}
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -37,6 +49,9 @@ static void printProgress(float percent)
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+
+    // Register Traktor as the default handler for .wpress files
+    claimFileType();
 
     QCommandLineParser parser;
     parser.setApplicationDescription("Qtraktor - All-in-One WP Migration and Backup extractor");
@@ -174,18 +189,73 @@ int main(int argc, char *argv[])
         return QApplication::exec();
     }
 
-    // ── GUI mode ─────────────────────────────────────────────────────────────
-    MainWindow w;
-    AppDelegate appDelegate(&w);
-    a.installEventFilter(&appDelegate);
+    // ── GUI or macOS file-open mode ─────────────────────────────────────────
+    // On macOS, double-clicking a .wpress file launches the app with NO args,
+    // then sends QEvent::FileOpen shortly after. We defer the GUI/auto-extract
+    // decision to handle this: install a startup delegate that collects FileOpen
+    // events during a brief window, then decides which mode to use.
 
-    if (!source.isEmpty())
+    // If --source was explicitly given, go straight to GUI mode
+    if (!source.isEmpty()) {
+        MainWindow w;
+        AppDelegate appDelegate(&w);
+        a.installEventFilter(&appDelegate);
         w.openBackupFile(source);
+        if (!password.isEmpty())
+            w.setPassword(password);
+        w.show();
+        return QApplication::exec();
+    }
 
-    if (!password.isEmpty())
-        w.setPassword(password);
+    // No args at all: wait briefly for macOS FileOpen events
+    QStringList pendingFiles;
+    bool decided = false;
+    MainWindow *window = nullptr;
+    AutoExtractor *extractor = nullptr;
 
-    w.show();
+    // Temporary event filter that collects FileOpen events during startup
+    class StartupFilter : public QObject {
+    public:
+        QStringList *files;
+        bool *decided;
+        explicit StartupFilter(QStringList *f, bool *d, QObject *p = nullptr)
+            : QObject(p), files(f), decided(d) {}
+        bool eventFilter(QObject *, QEvent *event) override {
+            if (event->type() == QEvent::FileOpen) {
+                QFileOpenEvent *e = static_cast<QFileOpenEvent *>(event);
+                debugLog("StartupFilter: FileOpen event: " + e->file() + " decided=" + (*decided ? "true" : "false"));
+                if (!*decided) {
+                    files->append(e->file());
+                    return true;
+                }
+            }
+            return false;
+        }
+    };
+
+    debugLog("Installing StartupFilter, entering event loop");
+    StartupFilter startupFilter(&pendingFiles, &decided);
+    a.installEventFilter(&startupFilter);
+
+    // Give macOS 300ms to deliver FileOpen events
+    QTimer::singleShot(300, [&]() {
+        debugLog("Timer fired. pendingFiles count=" + QString::number(pendingFiles.size()));
+        decided = true;
+        a.removeEventFilter(&startupFilter);
+
+        if (!pendingFiles.isEmpty()) {
+            debugLog("Auto-extract mode: " + pendingFiles.join(", "));
+            extractor = new AutoExtractor(pendingFiles);
+            AppDelegate *appDel = new AppDelegate(nullptr, extractor);
+            a.installEventFilter(appDel);
+        } else {
+            debugLog("GUI mode: no FileOpen events received");
+            window = new MainWindow();
+            AppDelegate *appDel = new AppDelegate(window);
+            a.installEventFilter(appDel);
+            window->show();
+        }
+    });
 
     return QApplication::exec();
 }

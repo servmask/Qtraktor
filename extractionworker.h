@@ -23,6 +23,7 @@ public:
 
     void abort();
     bool isAborted() const;
+    float currentProgress() const;
 
     static CheckResult checkConfig(const QString &filePath);
 
@@ -41,6 +42,7 @@ private:
     QString m_password;
     QString m_destDir;
     QAtomicInt m_abort;
+    QAtomicInt m_progress; // 0-100, set from worker, polled from main thread
 };
 
 #endif // EXTRACTIONWORKER_H

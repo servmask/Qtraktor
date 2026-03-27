@@ -78,6 +78,7 @@ SOURCES += \
         dropoverlay.cpp \
         extractionworker.cpp \
         autoextractor.cpp \
+        progresswindow.cpp \
         $$BZIP2_DIR/blocksort.c \
         $$BZIP2_DIR/huffman.c \
         $$BZIP2_DIR/crctable.c \
@@ -95,6 +96,7 @@ HEADERS += \
         dropoverlay.h \
         extractionworker.h \
         autoextractor.h \
+        progresswindow.h \
         dockprogress.h
 
 FORMS += \

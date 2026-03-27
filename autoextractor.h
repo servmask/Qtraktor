@@ -3,8 +3,11 @@
 
 #include <QObject>
 #include <QStringList>
+#include <QDialog>
+#include <QLabel>
 #include <QLocalServer>
-#include <QProgressDialog>
+#include <QProgressBar>
+#include <QPushButton>
 #include <QSystemTrayIcon>
 #include "extractionworker.h"
 
@@ -21,11 +24,10 @@ public:
 private slots:
     void processQueue();
     void onNewConnection();
-    void onWorkerProgress(float percent);
+    void pollProgress();
     void onWorkerPhaseChanged(const QString &phase);
     void onWorkerError(const QString &message);
     void onWorkerFinished(bool success);
-    void onProgressTimeout();
 
 private:
     void showNotification(const QString &title, const QString &message);
@@ -33,10 +35,15 @@ private:
 
     QStringList m_queue;
     QLocalServer *m_server;
+    void createProgressDialog();
+
     ExtractionWorker *m_worker;
-    QProgressDialog *m_progressDialog;
+    QDialog *m_progressDialog;
+    QLabel *m_progressLabel;
+    QProgressBar *m_progressBar;
+    QPushButton *m_stopButton;
     QSystemTrayIcon *m_trayIcon;
-    QTimer *m_progressTimer;
+    QTimer *m_pollTimer;
     QString m_currentFile;
     QString m_currentDestDir;
     QString m_lastError;
