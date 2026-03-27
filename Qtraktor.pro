@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui
+QT       += core gui network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -76,6 +76,8 @@ SOURCES += \
         passworddialog.cpp \
         appdelegate.cpp \
         dropoverlay.cpp \
+        extractionworker.cpp \
+        autoextractor.cpp \
         $$BZIP2_DIR/blocksort.c \
         $$BZIP2_DIR/huffman.c \
         $$BZIP2_DIR/crctable.c \
@@ -90,17 +92,26 @@ HEADERS += \
         cryptoutils.h \
         passworddialog.h \
         appdelegate.h \
-        dropoverlay.h
+        dropoverlay.h \
+        extractionworker.h \
+        autoextractor.h \
+        dockprogress.h
 
 FORMS += \
         mainwindow.ui
 
 RC_ICONS = icons/traktor.ico
 ICON = icons/traktor.icns
-macx: QMAKE_INFO_PLIST = Info.plist
-macx: FILE_ICON.files = icons/file.icns
-macx: FILE_ICON.path = Contents/Resources
-macx: QMAKE_BUNDLE_DATA += FILE_ICON
+macx {
+    OBJECTIVE_SOURCES += dockprogress.mm
+    QMAKE_INFO_PLIST = Info.plist
+    FILE_ICON.files = icons/file.icns
+    FILE_ICON.path = Contents/Resources
+    QMAKE_BUNDLE_DATA += FILE_ICON
+}
+!macx {
+    SOURCES += dockprogress_stub.cpp
+}
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

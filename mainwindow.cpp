@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QProcess>
+#include <QSettings>
 #include "passworddialog.h"
 #include "cryptoutils.h"
 
@@ -18,19 +19,27 @@ MainWindow::MainWindow(QWidget *parent) :
   connect(ui->dropZone, &DropOverlay::fileDropped, this, &MainWindow::openBackupFile);
   connect(ui->dropZone, &DropOverlay::clicked, this, &MainWindow::openBackup);
   ui->clearButton->setVisible(false);
+
+  QSettings settings("com.servmask", "Traktor");
+  restoreGeometry(settings.value("windowGeometry").toByteArray());
 }
 
 MainWindow::~MainWindow()
 {
+  QSettings settings("com.servmask", "Traktor");
+  settings.setValue("windowGeometry", saveGeometry());
   delete ui;
 }
 
 void MainWindow::openBackup()
 {
+  QSettings settings("com.servmask", "Traktor");
+  QString lastDir = settings.value("lastOpenPath").toString();
+
   QString selectedFile = QFileDialog::getOpenFileName(
     this,
     tr("Open a backup"),
-    "",
+    lastDir,
     tr("WordPress backup (*.wpress)")
   );
 
@@ -38,6 +47,7 @@ void MainWindow::openBackup()
     return;
   }
 
+  settings.setValue("lastOpenPath", QFileInfo(selectedFile).absolutePath());
   backupFilename = selectedFile;
 
   QFileInfo fileInfo(backupFilename);
@@ -69,16 +79,20 @@ void MainWindow::clearFile()
 
 void MainWindow::extractTo()
 {
+  QSettings settings("com.servmask", "Traktor");
+  QString lastDir = settings.value("lastExtractPath").toString();
+
   QString extractToDir = QFileDialog::getExistingDirectory(
     this,
     tr("Select extract to folder"),
-    ""
+    lastDir
   );
 
   if (extractToDir.isNull()) {
     return;
   }
 
+  settings.setValue("lastExtractPath", extractToDir);
   extractToPath(extractToDir);
 }
 
@@ -136,60 +150,33 @@ void MainWindow::extractToPath(const QString &destDir)
     return;
   }
 
+  // Quick config check on main thread to determine if password is needed
+  CheckResult config = ExtractionWorker::checkConfig(backupFilename);
 
-  BackupFile configChecker(backupFilename);
-  bool needsPassword = false;
-  CompressionType compressionType = COMPRESSION_NONE;
+  if (!config.isValid) {
+    QMessageBox::warning(this, tr("Corrupted backup file"),
+      tr("The backup file is corrupted. It is missing the end of the file."),
+      QMessageBox::StandardButton::Ok);
+    extractTo.removeRecursively();
+    return;
+  }
 
-  if (configChecker.open(QIODevice::ReadOnly)) {
-    if (configChecker.isValid()) {
+  if (config.isEncrypted && filePassword.isEmpty()) {
+    PasswordDialog dialog(this);
+    dialog.setWindowTitle(tr("Password Required"));
 
-      needsPassword = configChecker.isEncryptedFile();
-      compressionType = configChecker.getCompressionType();
-      configChecker.close();
-
-      if (needsPassword && filePassword.isEmpty()) {
-
-        PasswordDialog dialog(this);
-        dialog.setWindowTitle(tr("Password Required"));
-
-        if (dialog.exec() == QDialog::Accepted) {
-          filePassword = dialog.getPassword();
-        } else {
-          extractTo.removeRecursively();
-          return;
-        }
-      }
+    if (dialog.exec() == QDialog::Accepted) {
+      filePassword = dialog.getPassword();
     } else {
-      configChecker.close();
+      extractTo.removeRecursively();
+      return;
     }
   }
 
-  BackupFile backupFile(backupFilename, filePassword);
-
-  if (!backupFile.open(QIODevice::ReadOnly)) {
-    QMessageBox::warning(
-      this,
-      tr("Unable to open file"),
-      tr("Unable to open file %1 for reading. Fix permissions and try again.").arg(backupFilename),
-      QMessageBox::StandardButton::Ok
-    );
-    return;
-  }
-  backupFile.setConfig(needsPassword, compressionType);
-
-  if (!backupFile.isValid()) {
-     QMessageBox::warning(
-      this,
-      tr("Corrupted backup file"),
-      tr("The backup file is corrupted. It is missing the end of the file."),
-      QMessageBox::StandardButton::Ok
-    );
-    backupFile.close();
-    return;
-  }
+  currentExtractDir = extractTo.path();
 
   ui->progressBar->setVisible(true);
+  ui->progressBar->setValue(0);
   ui->logTextEdit->clear();
   ui->logTextEdit->setVisible(false);
 
@@ -197,33 +184,39 @@ void MainWindow::extractToPath(const QString &destDir)
   ui->openBackupButton->setEnabled(false);
   ui->extractBackupButton->setEnabled(false);
 
-  QString lastError;
-  connect(&backupFile, &BackupFile::progress, this, &MainWindow::extractProgress);
-  connect(&backupFile, &BackupFile::error, this, [&lastError](const QString &error) {
-    lastError = error;
-  });
+  activeWorker = new ExtractionWorker(backupFilename, filePassword, currentExtractDir, this);
 
-  connect(&backupFile, &BackupFile::logMessage, this, [this](const QString &msg) {
+  connect(activeWorker, &ExtractionWorker::progress, this, &MainWindow::extractProgress);
+  connect(activeWorker, &ExtractionWorker::extractionError, this, &MainWindow::onExtractionError);
+  connect(activeWorker, &ExtractionWorker::extractionFinished, this, &MainWindow::onExtractionFinished);
+  connect(activeWorker, &ExtractionWorker::logMessage, this, [this](const QString &msg) {
     ui->logTextEdit->setVisible(true);
     ui->logTextEdit->append(msg);
   });
+  connect(activeWorker, &QThread::finished, activeWorker, &QObject::deleteLater);
 
-  bool extractionSuccess = backupFile.extract(extractTo);
-  backupFile.close();
+  activeWorker->start();
+}
 
-  // Re-enable generic controls
+void MainWindow::onExtractionError(const QString &error)
+{
+  lastExtractionError = error;
+}
+
+void MainWindow::onExtractionFinished(bool success)
+{
+  activeWorker = nullptr;
   ui->openBackupButton->setEnabled(true);
+  ui->progressBar->setVisible(false);
 
-  if (!extractionSuccess) {
-    ui->progressBar->setVisible(false);
-    ui->extractBackupButton->setEnabled(true); // Re-enable extract on failure
-
+  if (!success) {
+    ui->extractBackupButton->setEnabled(true);
     filePassword.clear();
-    extractTo.removeRecursively();
+    QDir(currentExtractDir).removeRecursively();
 
     QString errorMessage;
-    if (!lastError.isEmpty()) {
-      errorMessage = lastError;
+    if (!lastExtractionError.isEmpty()) {
+      errorMessage = lastExtractionError;
     } else {
       errorMessage = tr("The backup file extraction failed. The file may be corrupted or the password may be incorrect.");
     }
@@ -236,11 +229,12 @@ void MainWindow::extractToPath(const QString &destDir)
     msgBox.setStandardButtons(QMessageBox::Ok);
     msgBox.exec();
   } else {
-    ui->progressBar->setVisible(false);
-    ui->dropZone->setFileName(tr("Extracted backup in %1").arg(extractTo.path()));
+    ui->dropZone->setFileName(tr("Extracted backup in %1").arg(currentExtractDir));
     ui->extractBackupButton->setDisabled(true);
-    showInGraphicalShell(extractTo.path());
+    showInGraphicalShell(currentExtractDir);
   }
+
+  lastExtractionError.clear();
 }
 
 void MainWindow::extractProgress(float percent)

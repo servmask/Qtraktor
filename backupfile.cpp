@@ -2,6 +2,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <zlib.h>
 
 namespace {
   struct FileStateGuard {
@@ -106,4 +107,51 @@ void BackupFile::loadConfig()
       break;
     }
   }
+}
+
+bool BackupFile::verifyArchiveCrc()
+{
+  const qint64 dataSize = size() - kHeaderSize;
+  if (dataSize <= 0) {
+    return true;
+  }
+
+  if (!seek(size() - kHeaderSize)) {
+    return true;
+  }
+  const QByteArray eofBlock = QFile::read(kHeaderSize);
+  const QString expectedCrc = QString::fromLatin1(eofBlock.mid(4369, 8));
+
+  if (!seek(0)) {
+    return true;
+  }
+
+  uLong crc = ::crc32(0L, Z_NULL, 0);
+  qint64 remaining = dataSize;
+
+  while (remaining > 0) {
+    if (abortFlag && abortFlag->loadAcquire() != 0)
+      return false;
+
+    const qint64 toRead = qMin(remaining, kCrcChunkSize);
+    const QByteArray chunk = QFile::read(toRead);
+    if (chunk.isEmpty()) {
+      break;
+    }
+    crc = ::crc32(crc, reinterpret_cast<const Bytef*>(chunk.constData()), chunk.size());
+    remaining -= chunk.size();
+  }
+
+  const QString actualCrc = QString::asprintf("%08x", static_cast<unsigned int>(crc));
+  if (actualCrc != expectedCrc) {
+    emit error(QString("This backup file is damaged and can't be extracted.<br />"
+                        "Try downloading or transferring the file again.<br /><br />"
+                        "<b>Reason:</b> File integrity check failed (CRC mismatch). "
+                        "<a href=\"https://help.servmask.com/knowledgebase/import-failed-crc-mismatch/\">"
+                        "Technical details</a>"));
+    return false;
+  }
+
+  seek(0);
+  return true;
 }

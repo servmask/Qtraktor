@@ -21,6 +21,7 @@ const QStringList CryptoUtils::CONFIG_FILES = {
 
 const int CryptoUtils::CHUNK_SIZE_PREFIX_LENGTH = 4;
 const int CryptoUtils::ENCRYPTION_CHUNK_SIZE = 512032; // 512000 plaintext + 16 IV + 16 AES padding
+const int CryptoUtils::STREAM_COPY_CHUNK_SIZE = 524288; // 512KB
 static constexpr int OUTPUT_BUFFER_SIZE = 32768;
 
 static quint32 readBigEndianUInt32(const QByteArray& data, int offset)
@@ -395,4 +396,234 @@ QByteArray CryptoUtils::processFileContentWithPassword(
     }
 
     return result;
+}
+
+// ── Streaming helpers ────────────────────────────────────────────────────────
+
+bool CryptoUtils::readExactFromDevice(QIODevice *source, qint64 size, QByteArray &out)
+{
+    out.clear();
+    out.reserve(static_cast<int>(size));
+    qint64 remaining = size;
+
+    while (remaining > 0) {
+        const QByteArray chunk = source->read(qMin(remaining, static_cast<qint64>(STREAM_COPY_CHUNK_SIZE)));
+        if (chunk.isEmpty())
+            return false;
+        out.append(chunk);
+        remaining -= chunk.size();
+    }
+
+    return out.size() == size;
+}
+
+bool CryptoUtils::copyPlain(QIODevice *source, qint64 contentSize, QIODevice *dest, QString *errorMsg)
+{
+    qint64 remaining = contentSize;
+
+    while (remaining > 0) {
+        const qint64 toRead = qMin(remaining, static_cast<qint64>(STREAM_COPY_CHUNK_SIZE));
+        const QByteArray chunk = source->read(toRead);
+        if (chunk.isEmpty()) {
+            if (errorMsg) *errorMsg = "Failed to read from source";
+            return false;
+        }
+        if (dest->write(chunk) != chunk.size()) {
+            if (errorMsg) *errorMsg = "Failed to write to destination";
+            return false;
+        }
+        remaining -= chunk.size();
+    }
+
+    return true;
+}
+
+bool CryptoUtils::streamCompressed(QIODevice *source, qint64 contentSize, QIODevice *dest,
+                                     CompressionType type, QString *errorMsg)
+{
+    if (errorMsg) errorMsg->clear();
+    qint64 bytesConsumed = 0;
+
+    while (bytesConsumed < contentSize) {
+        if (bytesConsumed + CHUNK_SIZE_PREFIX_LENGTH > contentSize) {
+            if (errorMsg) *errorMsg = "Incomplete chunk header";
+            return false;
+        }
+
+        QByteArray sizeBytes;
+        if (!readExactFromDevice(source, CHUNK_SIZE_PREFIX_LENGTH, sizeBytes)) {
+            if (errorMsg) *errorMsg = "Failed to read chunk size prefix";
+            return false;
+        }
+        bytesConsumed += CHUNK_SIZE_PREFIX_LENGTH;
+
+        const quint32 chunkSize = readBigEndianUInt32(sizeBytes, 0);
+        if (chunkSize == 0 || bytesConsumed + chunkSize > contentSize) {
+            if (errorMsg) *errorMsg = "Invalid chunk size";
+            return false;
+        }
+
+        QByteArray compressedChunk;
+        if (!readExactFromDevice(source, chunkSize, compressedChunk)) {
+            if (errorMsg) *errorMsg = "Failed to read compressed chunk";
+            return false;
+        }
+        bytesConsumed += chunkSize;
+
+        QString decompErr;
+        const QByteArray decompressed = decompressChunk(compressedChunk, type, &decompErr);
+        if (!decompErr.isEmpty()) {
+            if (errorMsg) *errorMsg = decompErr;
+            return false;
+        }
+
+        if (dest->write(decompressed) != decompressed.size()) {
+            if (errorMsg) *errorMsg = "Failed to write decompressed data";
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool CryptoUtils::streamEncryptedOnly(QIODevice *source, qint64 contentSize, QIODevice *dest,
+                                        const QString &password, QString *errorMsg)
+{
+    if (errorMsg) errorMsg->clear();
+    qint64 remaining = contentSize;
+
+    while (remaining > 0) {
+        const qint64 chunkSize = qMin(remaining, static_cast<qint64>(ENCRYPTION_CHUNK_SIZE));
+
+        QByteArray encryptedChunk;
+        if (!readExactFromDevice(source, chunkSize, encryptedChunk)) {
+            if (errorMsg) *errorMsg = "Failed to read encrypted chunk";
+            return false;
+        }
+        remaining -= chunkSize;
+
+        QString decryptErr;
+        const QByteArray decrypted = decryptString(encryptedChunk, password, &decryptErr);
+        if (!decryptErr.isEmpty()) {
+            if (errorMsg) *errorMsg = decryptErr;
+            return false;
+        }
+
+        if (dest->write(decrypted) != decrypted.size()) {
+            if (errorMsg) *errorMsg = "Failed to write decrypted data";
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool CryptoUtils::streamCompressedEncrypted(QIODevice *source, qint64 contentSize, QIODevice *dest,
+                                              const QString &password, CompressionType type, QString *errorMsg)
+{
+    if (errorMsg) errorMsg->clear();
+    qint64 bytesConsumed = 0;
+
+    while (bytesConsumed < contentSize) {
+        if (bytesConsumed + CHUNK_SIZE_PREFIX_LENGTH > contentSize) {
+            if (errorMsg) *errorMsg = "Incomplete chunk header";
+            return false;
+        }
+
+        QByteArray sizeBytes;
+        if (!readExactFromDevice(source, CHUNK_SIZE_PREFIX_LENGTH, sizeBytes)) {
+            if (errorMsg) *errorMsg = "Failed to read chunk size prefix";
+            return false;
+        }
+        bytesConsumed += CHUNK_SIZE_PREFIX_LENGTH;
+
+        const quint32 chunkSize = readBigEndianUInt32(sizeBytes, 0);
+        if (chunkSize == 0 || bytesConsumed + chunkSize > contentSize) {
+            if (errorMsg) *errorMsg = "Invalid chunk size";
+            return false;
+        }
+
+        QByteArray encryptedChunk;
+        if (!readExactFromDevice(source, chunkSize, encryptedChunk)) {
+            if (errorMsg) *errorMsg = "Failed to read encrypted chunk";
+            return false;
+        }
+        bytesConsumed += chunkSize;
+
+        QString decryptErr;
+        const QByteArray decrypted = decryptString(encryptedChunk, password, &decryptErr);
+        if (!decryptErr.isEmpty()) {
+            if (errorMsg) *errorMsg = QString("Chunk decryption failed: %1").arg(decryptErr);
+            return false;
+        }
+
+        QString decompErr;
+        const QByteArray decompressed = decompressChunk(decrypted, type, &decompErr);
+        if (!decompErr.isEmpty()) {
+            if (errorMsg) *errorMsg = decompErr;
+            return false;
+        }
+
+        if (dest->write(decompressed) != decompressed.size()) {
+            if (errorMsg) *errorMsg = "Failed to write decompressed data";
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// ── Streaming public API ─────────────────────────────────────────────────────
+
+bool CryptoUtils::processFileContentStreaming(QIODevice *source, qint64 contentSize,
+                                               QIODevice *dest, bool isCompressed,
+                                               const QString &fileName,
+                                               CompressionType compressionType,
+                                               QString *errorMsg)
+{
+    if (errorMsg) errorMsg->clear();
+
+    if (contentSize == 0)
+        return true;
+
+    // Config files are small; plain copy is fine
+    if (isConfigFile(fileName) || !isCompressed || compressionType == COMPRESSION_NONE) {
+        return copyPlain(source, contentSize, dest, errorMsg);
+    }
+
+    return streamCompressed(source, contentSize, dest, compressionType, errorMsg);
+}
+
+bool CryptoUtils::processFileContentWithPasswordStreaming(QIODevice *source, qint64 contentSize,
+                                                           QIODevice *dest, bool isCompressed,
+                                                           const QString &fileName, const QString &password,
+                                                           CompressionType compressionType,
+                                                           QString *errorMsg)
+{
+    if (errorMsg) errorMsg->clear();
+
+    if (contentSize == 0)
+        return true;
+
+    // Config files are never encrypted/compressed in practice
+    if (isConfigFile(fileName)) {
+        return copyPlain(source, contentSize, dest, errorMsg);
+    }
+
+    if (!isCompressed) {
+        if (!password.isEmpty()) {
+            return streamEncryptedOnly(source, contentSize, dest, password, errorMsg);
+        }
+        return copyPlain(source, contentSize, dest, errorMsg);
+    }
+
+    if (compressionType == COMPRESSION_NONE) {
+        return copyPlain(source, contentSize, dest, errorMsg);
+    }
+
+    if (!password.isEmpty()) {
+        return streamCompressedEncrypted(source, contentSize, dest, password, compressionType, errorMsg);
+    }
+
+    return streamCompressed(source, contentSize, dest, compressionType, errorMsg);
 }

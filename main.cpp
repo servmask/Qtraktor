@@ -1,10 +1,13 @@
 #include "mainwindow.h"
 #include "appdelegate.h"
+#include "autoextractor.h"
 #include "backupfile.h"
+#include "extractionworker.h"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QFileInfo>
 #include <QDir>
+#include <QLocalSocket>
 #include <cstdio>
 
 #ifdef Q_OS_WIN
@@ -145,6 +148,30 @@ int main(int argc, char *argv[])
                 extractTo.path().toLocal8Bit().constData());
         fflush(stdout);
         return 0;
+    }
+
+    // ── Auto-extract mode ──────────────────────────────────────────────────
+    // Positional args without --source/--destination flags = double-click / file association
+    const bool hasExplicitSource = parser.isSet(sourceOption);
+    if (!positional.isEmpty() && !hasExplicitSource) {
+        // Try single-instance: forward to existing instance if running
+        QLocalSocket socket;
+        socket.connectToServer("com.servmask.Traktor");
+        if (socket.waitForConnected(500)) {
+            // Another instance is running, forward all files
+            for (const QString &file : positional) {
+                socket.write((file + "\n").toUtf8());
+            }
+            socket.waitForBytesWritten(1000);
+            socket.disconnectFromServer();
+            return 0;
+        }
+
+        AutoExtractor extractor(positional);
+        AppDelegate appDelegate(nullptr, &extractor);
+        a.installEventFilter(&appDelegate);
+
+        return QApplication::exec();
     }
 
     // ── GUI mode ─────────────────────────────────────────────────────────────

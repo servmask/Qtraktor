@@ -248,17 +248,27 @@ jobs:
           [ -f linuxdeploy-plugin-qt-x86_64.AppImage ] || wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           chmod +x linuxdeploy*.AppImage
 
-          # Create .desktop file
+          # Create .desktop file with file association and context menu action
           cat > traktor.desktop << 'DESKTOP'
           [Desktop Entry]
           Name=Traktor
           Comment=WPRESS Extractor
-          Exec=Traktor
+          Exec=Traktor %f
           Icon=traktor
           Type=Application
           Categories=Utility;
+          MimeType=application/x-wpress;
+          Actions=Extract;
+
+          [Desktop Action Extract]
+          Name=Extract with Traktor
+          Exec=Traktor %f
           DESKTOP
           sed -i 's/^          //' traktor.desktop
+
+          # Install MIME type definition
+          mkdir -p AppDir/usr/share/mime/packages
+          cp wpress.xml AppDir/usr/share/mime/packages/
 
           # Build AppImage
           ./linuxdeploy-x86_64.AppImage \

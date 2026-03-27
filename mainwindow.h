@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include "backupfile.h"
+#include "extractionworker.h"
 #include "passworddialog.h"
 
 namespace Ui {
@@ -25,10 +26,17 @@ class MainWindow : public QMainWindow
     void extractToPath(const QString &destDir);
     void extractProgress(float percent);
 
+  private slots:
+    void onExtractionFinished(bool success);
+    void onExtractionError(const QString &error);
+
   private:
     Ui::MainWindow *ui;
     QString backupFilename;
     QString filePassword;
+    QString currentExtractDir;
+    QString lastExtractionError;
+    ExtractionWorker *activeWorker = nullptr;
     void showInGraphicalShell(const QString &pathIn);
 };
 

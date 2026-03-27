@@ -1,7 +1,7 @@
 #ifndef BACKUPFILE_H
 #define BACKUPFILE_H
 
-#include <QApplication>
+#include <QAtomicInt>
 #include <QDir>
 #include <QFile>
 #include <QJsonObject>
@@ -22,11 +22,15 @@ public:
       filePassword(password),
       isEncrypted(false),
       isV2(false),
-      compressionType(COMPRESSION_NONE)
+      compressionType(COMPRESSION_NONE),
+      abortFlag(nullptr)
   {}
 
   bool isEncryptedFile() const { return isEncrypted; }
+  bool isV2Format() const { return isV2; }
   CompressionType getCompressionType() const { return compressionType; }
+
+  void setAbortFlag(QAtomicInt *flag) { abortFlag = flag; }
 
   void ensureConfigLoaded()
   {
@@ -40,6 +44,8 @@ public:
     isEncrypted = encrypted;
     compressionType = compType;
   }
+
+  bool verifyArchiveCrc();
 
   bool isValid()
   {
@@ -77,10 +83,6 @@ public:
       loadConfig();
     }
 
-    if (isV2 && !verifyArchiveCrc()) {
-      return false;
-    }
-
     auto log = [&](const QString& msg, bool isError = false) {
        if (!isError) {
          return;
@@ -92,6 +94,11 @@ public:
     };
 
     while (!atEnd()) {
+      if (abortFlag && abortFlag->loadAcquire() != 0) {
+        log("Extraction cancelled.", true);
+        return false;
+      }
+
       HeaderInfo info;
       if (!readHeader(info)) {
         log("Failed to read file header. The backup file might be corrupted or truncated.", true);
@@ -104,46 +111,42 @@ public:
 
       const QString fullPath = buildOutputPath(extractTo, info.fileName, info.filePath);
 
-      QByteArray fileContent;
-      if (!readExact(info.fileSize, fileContent)) {
-        log(QString("Fatal: Failed to read content data for file: %1. Archive might be truncated.").arg(info.fileName), true);
-        return false;
-      }
-
       QFile out(fullPath);
       if (!out.open(QIODevice::WriteOnly)) {
         log(QString("Error: Failed to create output file: %1 (Permissions?). Skipping.").arg(fullPath), true);
+        // Skip over the content bytes we won't process
+        if (!seek(pos() + info.fileSize)) {
+          log(QString("Fatal: Failed to skip content for file: %1.").arg(info.fileName), true);
+          return false;
+        }
         continue;
       }
 
       const bool isCompressed = !CryptoUtils::isConfigFile(info.fileName) && compressionType != COMPRESSION_NONE;
 
       QString processError;
-      QByteArray processedContent;
+      bool streamOk;
 
       if (isEncrypted && !filePassword.isEmpty()) {
-        processedContent = CryptoUtils::processFileContentWithPassword(
-          fileContent, isCompressed, info.fileName, filePassword, compressionType, &processError
+        streamOk = CryptoUtils::processFileContentWithPasswordStreaming(
+          this, info.fileSize, &out, isCompressed, info.fileName, filePassword, compressionType, &processError
         );
       } else {
-        processedContent = CryptoUtils::processFileContent(
-          fileContent, isCompressed, info.fileName, compressionType, &processError
+        streamOk = CryptoUtils::processFileContentStreaming(
+          this, info.fileSize, &out, isCompressed, info.fileName, compressionType, &processError
         );
-      }
-
-      if (!processError.isEmpty()) {
-        log(QString("Error processing file '%1': %2. Skipping.").arg(info.fileName, processError), true);
-        out.close();
-        continue;
-      }
-
-      if (out.write(processedContent) != processedContent.size()) {
-        log(QString("Error: Failed to write to destination file: %1 (Disk full?). Skipping.").arg(fullPath), true);
-        out.close();
-        continue;
       }
 
       out.close();
+
+      if (!streamOk) {
+        if (abortFlag && abortFlag->loadAcquire() != 0) {
+          log("Extraction cancelled.", true);
+          return false;
+        }
+        log(QString("Error processing file '%1': %2. Skipping.").arg(info.fileName, processError), true);
+        continue;
+      }
 
       if (isV2 && !info.crc32.isEmpty()) {
         const QString actualCrc = computeFileCrc32(fullPath);
@@ -165,6 +168,9 @@ signals:
 protected:
   qint64 readData(char* data, qint64 maxlen) override
   {
+    if (abortFlag && abortFlag->loadAcquire() != 0)
+      return -1;
+
     const qint64 n = QFile::readData(data, maxlen);
     bytesRead += n;
 
@@ -174,7 +180,6 @@ protected:
       emit progress(0.0f);
     }
 
-    QApplication::processEvents();
     return n;
   }
 
@@ -269,47 +274,6 @@ private:
     return hexPattern.match(QString::fromLatin1(crcField)).hasMatch();
   }
 
-  bool verifyArchiveCrc()
-  {
-    const qint64 dataSize = size() - kHeaderSize;
-    if (dataSize <= 0) {
-      return true;
-    }
-
-    // Read EOF block to extract expected CRC (last 8 bytes)
-    if (!seek(size() - kHeaderSize)) {
-      return true;
-    }
-    const QByteArray eofBlock = QFile::read(kHeaderSize);
-    const QString expectedCrc = QString::fromLatin1(eofBlock.mid(4369, 8));
-
-    if (!seek(0)) {
-      return true;
-    }
-
-    uLong crc = ::crc32(0L, Z_NULL, 0);
-    qint64 remaining = dataSize;
-
-    while (remaining > 0) {
-      const qint64 toRead = qMin(remaining, kCrcChunkSize);
-      const QByteArray chunk = QFile::read(toRead);
-      if (chunk.isEmpty()) {
-        break;
-      }
-      crc = ::crc32(crc, reinterpret_cast<const Bytef*>(chunk.constData()), chunk.size());
-      remaining -= chunk.size();
-    }
-
-    const QString actualCrc = QString::asprintf("%08x", static_cast<unsigned int>(crc));
-    if (actualCrc != expectedCrc) {
-      emit error(QString("This backup file is damaged and can't be extracted.<br />Try downloading or transferring the file again.<br /><br /><b>Reason:</b> File integrity check failed (CRC mismatch). <a href=\"https://help.servmask.com/knowledgebase/import-failed-crc-mismatch/\">Technical details</a>"));
-      return false;
-    }
-
-    seek(0);
-    return true;
-  }
-
   static QString computeFileCrc32(const QString& filePath)
   {
     QFile file(filePath);
@@ -356,6 +320,7 @@ private:
   bool isEncrypted;
   bool isV2;
   CompressionType compressionType;
+  QAtomicInt *abortFlag;
 };
 
 #endif // BACKUPFILE_H

@@ -36,5 +36,17 @@ Component.prototype.createOperations = function() {
             "application/x-wpress",
             iconPath
         );
+
+        // Add "Extract with Traktor" context menu entry on the ProgID
+        component.addOperation(
+            "Execute",
+            "cmd", "/c", "reg", "add",
+            "HKCU\\Software\\Classes\\wpress_auto_file\\shell\\Extract with Traktor\\command",
+            "/ve", "/d", "\"" + exePath + "\" \"%1\"", "/f",
+            "UNDOEXECUTE",
+            "cmd", "/c", "reg", "delete",
+            "HKCU\\Software\\Classes\\wpress_auto_file\\shell\\Extract with Traktor",
+            "/f"
+        );
     }
 };
