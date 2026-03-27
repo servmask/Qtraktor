@@ -11,7 +11,7 @@
     <key>CFBundleSignature</key>
     <string>${QMAKE_PKGINFO_TYPEINFO}</string>
     <key>CFBundleIconFile</key>
-    <string>${ASSETCATALOG_COMPILER_APPICON_NAME}</string>
+    <string>traktor.icns</string>
     <key>LSMinimumSystemVersion</key>
     <string>${MACOSX_DEPLOYMENT_TARGET}</string>
     <key>NSPrincipalClass</key>
