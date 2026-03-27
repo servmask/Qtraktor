@@ -107,8 +107,10 @@ void AutoExtractor::processQueue()
         return;
     }
 
+    m_currentFileEncrypted = config.isEncrypted;
+
     QString password;
-    if (config.isEncrypted) {
+    if (m_currentFileEncrypted) {
         PasswordDialog dialog;
         dialog.setWindowTitle(tr("Password Required - %1").arg(fileInfo.fileName()));
         if (dialog.exec() == QDialog::Accepted) {
@@ -128,9 +130,15 @@ void AutoExtractor::processQueue()
         return;
     }
 
+    startExtraction(password);
+}
+
+void AutoExtractor::startExtraction(const QString &password)
+{
     if (!m_progressDialog)
         createProgressDialog();
 
+    QFileInfo fileInfo(m_currentFile);
     m_progressLabel->setText(tr("Extracting \"%1\"").arg(fileInfo.fileName()));
     m_progressBar->setValue(0);
 
@@ -143,7 +151,6 @@ void AutoExtractor::processQueue()
     m_progressDialog->show();
     m_progressDialog->raise();
 
-    // Create and start the worker
     m_worker = new ExtractionWorker(m_currentFile, password, m_currentDestDir, this);
     connect(m_worker, &ExtractionWorker::extractionError, this, &AutoExtractor::onWorkerError);
     connect(m_worker, &ExtractionWorker::extractionFinished, this, &AutoExtractor::onWorkerFinished);
@@ -226,9 +233,24 @@ void AutoExtractor::onWorkerFinished(bool success)
     if (success) {
         QDesktopServices::openUrl(QUrl::fromLocalFile(m_currentDestDir));
     } else {
+        // Clean up the failed extraction directory
         QDir(m_currentDestDir).removeRecursively();
 
-        if (!m_lastError.isEmpty()) {
+        // If encrypted, ask for password again instead of showing error
+        if (m_currentFileEncrypted) {
+            PasswordDialog dialog;
+            dialog.setWindowTitle(tr("Incorrect password - %1").arg(QFileInfo(m_currentFile).fileName()));
+            if (dialog.exec() == QDialog::Accepted) {
+                // Re-create destination directory and retry
+                m_currentDestDir = resolveDestDir(m_currentFile);
+                if (!m_currentDestDir.isEmpty()) {
+                    m_lastError.clear();
+                    startExtraction(dialog.getPassword());
+                    return;
+                }
+            }
+            // User cancelled or couldn't create directory, move on
+        } else if (!m_lastError.isEmpty()) {
             QMessageBox msgBox;
             msgBox.setWindowTitle(tr("Extraction Failed"));
             msgBox.setIcon(QMessageBox::Warning);
@@ -243,6 +265,7 @@ void AutoExtractor::onWorkerFinished(bool success)
     m_lastError.clear();
     m_currentFile.clear();
     m_currentDestDir.clear();
+    m_currentFileEncrypted = false;
 
     QTimer::singleShot(0, this, &AutoExtractor::processQueue);
 }

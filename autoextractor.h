@@ -44,10 +44,13 @@ private:
     QPushButton *m_stopButton;
     QSystemTrayIcon *m_trayIcon;
     QTimer *m_pollTimer;
+    void startExtraction(const QString &password);
+
     QString m_currentFile;
     QString m_currentDestDir;
     QString m_lastError;
     bool m_shuttingDown;
+    bool m_currentFileEncrypted;
 };
 
 #endif // AUTOEXTRACTOR_H
