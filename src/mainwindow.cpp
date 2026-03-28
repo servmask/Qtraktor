@@ -332,8 +332,8 @@ void MainWindow::uninstallTraktor()
     // Remove CLI symlink
     if (QFile::exists("/usr/local/bin/traktor")) {
         QStringList osascriptArgs;
-        osascriptArgs << "-e"
-                      << "do shell script \"rm -f /usr/local/bin/traktor\" with administrator privileges";
+        osascriptArgs << "-e";
+        osascriptArgs << "do shell script \"rm -f /usr/local/bin/traktor\" with administrator privileges";
         QProcess::execute("/usr/bin/osascript", osascriptArgs);
     }
 #endif

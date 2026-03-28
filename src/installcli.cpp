@@ -131,8 +131,8 @@ int cmdUninstall()
     // 2. Remove CLI symlink (needs admin privileges)
     if (QFile::exists(CLI_TARGET)) {
         QStringList osascriptArgs;
-        osascriptArgs << "-e"
-                      << "do shell script \"rm -f /usr/local/bin/traktor\" with administrator privileges";
+        osascriptArgs << "-e";
+        osascriptArgs << "do shell script \"rm -f /usr/local/bin/traktor\" with administrator privileges";
         int rc = QProcess::execute("/usr/bin/osascript", osascriptArgs);
         if (rc == 0) {
             fprintf(stdout, "Removed CLI symlink at %s\n", CLI_TARGET.toLocal8Bit().constData());
