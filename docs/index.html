@@ -328,12 +328,18 @@
 
         const cl = document.getElementById('changelog');
         if (rel.body) {
-          let b = rel.body.replace(/^## .+$/gm,'').replace(/\*\*Full Changelog\*\*.+$/gm,'').trim();
-          b = b.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2">$1</a>');
-          b = b.replace(/^\* (.+)$/gm,'<li>$1</li>');
-          b = b.replace(/((?:<li>.+<\/li>\n?)+)/g,'<ul>$1</ul>');
-          b = b.replace(/^### (.+)$/gm,'<h3>$1</h3>');
-          b = b.replace(/\n\n/g,'<br>');
+          let b = rel.body
+            .replace(/^## .+$/gm, '')
+            .replace(/\*\*Full Changelog\*\*.+$/gm, '')
+            .replace(/---[\s\S]*VirusTotal[\s\S]*$/gm, '')
+            .trim();
+          // Markdown to HTML
+          b = b.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+          b = b.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+          b = b.replace(/^\* (.+)$/gm, '<li>$1</li>');
+          b = b.replace(/((?:<li>.+<\/li>\n?)+)/g, '<ul>$1</ul>');
+          b = b.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+          b = b.replace(/\n\n+/g, '');
           cl.innerHTML = `<h3>What's new in ${rel.tag_name}</h3>${b}`;
         } else {
           cl.innerHTML = '<p style="color:var(--text-dim)">No changelog yet.</p>';
