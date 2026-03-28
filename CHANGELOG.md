@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.7.0](https://github.com/servmask/Qtraktor/compare/v1.6.0...v1.7.0) (2026-03-28)
+
+
+### Features
+
+* add CLI subcommands for AI-agent access to .wpress archives ([#23](https://github.com/servmask/Qtraktor/issues/23)) ([d013067](https://github.com/servmask/Qtraktor/commit/d013067e7093593008a6d9cb43c728dc8fec360c))
+* add multi-agent MCP registration, setup dialog, and uninstall ([#24](https://github.com/servmask/Qtraktor/issues/24)) ([eb2956a](https://github.com/servmask/Qtraktor/commit/eb2956a4c65e1e7a9bcc2af4591c4c35c4af2b59))
+
+
+### Documentation
+
+* add CLAUDE.md with project context for AI-assisted development ([#22](https://github.com/servmask/Qtraktor/issues/22)) ([6c74de0](https://github.com/servmask/Qtraktor/commit/6c74de0267abbbc04b4e199a5f463d2bff622bca))
+* add privacy policy and terms of use pages ([#21](https://github.com/servmask/Qtraktor/issues/21)) ([195f2de](https://github.com/servmask/Qtraktor/commit/195f2de3e03f6068de926d70d91279c626d13a98))
+
 ## [1.6.0](https://github.com/servmask/Qtraktor/compare/v1.5.0...v1.6.0) (2026-03-28)
 
 
