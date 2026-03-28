@@ -82,6 +82,18 @@ static QString resolvePassword(const QCommandLineParser &parser)
     return pw;
 }
 
+// Get positional arguments, skipping the subcommand name (argv[1]).
+// QCommandLineParser sees the subcommand as the first positional arg
+// because it doesn't know about subcommands. We strip it here.
+static QStringList positionalArgs(const QCommandLineParser &parser)
+{
+    QStringList args = parser.positionalArguments();
+    if (!args.isEmpty()) {
+        args.removeFirst();
+    }
+    return args;
+}
+
 static void printProgressStderr(float percent)
 {
     int filled = static_cast<int>(percent / 5.0f);
@@ -102,7 +114,7 @@ int cmdList(int /*argc*/, char * /*argv*/[])
     parser.addPositionalArgument("archive", "Archive file (.wpress)");
     parser.process(*QCoreApplication::instance());
 
-    const QStringList args = parser.positionalArguments();
+    const QStringList args = positionalArgs(parser);
     if (args.isEmpty()) {
         fprintf(stderr, "Error: missing archive argument\nUsage: traktor list [options] <archive>\n");
         return 1;
@@ -155,7 +167,7 @@ int cmdInfo(int /*argc*/, char * /*argv*/[])
     parser.addPositionalArgument("archive", "Archive file (.wpress)");
     parser.process(*QCoreApplication::instance());
 
-    const QStringList args = parser.positionalArguments();
+    const QStringList args = positionalArgs(parser);
     if (args.isEmpty()) {
         fprintf(stderr, "Error: missing archive argument\nUsage: traktor info [options] <archive>\n");
         return 1;
@@ -198,7 +210,7 @@ int cmdExtract(int /*argc*/, char * /*argv*/[])
     parser.addPositionalArgument("destination", "Directory to extract into", "[destination]");
     parser.process(*QCoreApplication::instance());
 
-    const QStringList args = parser.positionalArguments();
+    const QStringList args = positionalArgs(parser);
     if (args.isEmpty()) {
         fprintf(stderr, "Error: missing archive argument\nUsage: traktor extract [options] <archive> [destination]\n");
         return 1;
@@ -280,7 +292,7 @@ int cmdCat(int /*argc*/, char * /*argv*/[])
         return 1;
     }
 
-    const QStringList args = parser.positionalArguments();
+    const QStringList args = positionalArgs(parser);
     if (args.size() < 2) {
         fprintf(stderr, "Error: missing arguments\nUsage: traktor cat [options] <archive> <path>\n");
         return 1;
@@ -327,7 +339,7 @@ int cmdVerify(int /*argc*/, char * /*argv*/[])
     parser.addPositionalArgument("archive", "Archive file (.wpress)");
     parser.process(*QCoreApplication::instance());
 
-    const QStringList args = parser.positionalArguments();
+    const QStringList args = positionalArgs(parser);
     if (args.isEmpty()) {
         fprintf(stderr, "Error: missing archive argument\nUsage: traktor verify [options] <archive>\n");
         return 1;
@@ -408,10 +420,7 @@ int cmdVerify(int /*argc*/, char * /*argv*/[])
                 return true;
             }
 
-            // No CRC for this entry — skip content
-            if (!bf->seek(bf->pos() + info.fileSize)) {
-                return false;
-            }
+            // No CRC for this entry — iterateHeaders will skip content automatically
 
             if (jsonMode) {
                 QJsonObject obj;

@@ -162,15 +162,23 @@ bool BackupFile::iterateHeaders(std::function<bool(const HeaderInfo &)> callback
             return true;
         }
 
+        const qint64 posBeforeCallback = pos();
+
         if (!callback(info)) {
             seek(savedPos);
             return true; // callback requested stop, not an error
         }
 
-        // Skip past file content
-        if (!seek(pos() + info.fileSize)) {
-            seek(savedPos);
-            return false;
+        // Skip past file content ONLY if the callback didn't already consume it.
+        // Callbacks like verify stream through the content via CryptoUtils,
+        // which advances the file pointer. We detect this by checking whether
+        // the position moved since before the callback.
+        const qint64 expectedEnd = posBeforeCallback + info.fileSize;
+        if (pos() < expectedEnd) {
+            if (!seek(expectedEnd)) {
+                seek(savedPos);
+                return false;
+            }
         }
     }
 
@@ -257,7 +265,7 @@ QJsonObject BackupFile::getArchiveInfo()
     int totalFiles = 0;
     qint64 totalSize = 0;
 
-    iterateHeaders([&](const HeaderInfo &entry) {
+    const bool scanOk = iterateHeaders([&](const HeaderInfo &entry) {
         totalFiles++;
         totalSize += entry.fileSize;
         return true;
@@ -265,6 +273,7 @@ QJsonObject BackupFile::getArchiveInfo()
 
     info["totalFiles"] = totalFiles;
     info["totalSize"] = totalSize;
+    info["scanComplete"] = scanOk;
 
     return info;
 }
