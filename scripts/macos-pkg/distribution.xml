@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Traktor</title>
+    <organization>com.servmask</organization>
+    <options customize="never" require-scripts="false" hostArchitectures="x86_64,arm64"/>
+
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+
+    <choices-outline>
+        <line choice="default">
+            <line choice="com.servmask.traktor"/>
+        </line>
+    </choices-outline>
+
+    <choice id="default"/>
+
+    <choice id="com.servmask.traktor"
+            visible="false"
+            customLocation="/Applications">
+        <pkg-ref id="com.servmask.traktor"/>
+    </choice>
+
+    <pkg-ref id="com.servmask.traktor"
+             version="0.0.0"
+             onConclusion="none">traktor-component.pkg</pkg-ref>
+</installer-gui-script>

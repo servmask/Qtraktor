@@ -1,0 +1,47 @@
+<html>
+<head>
+<style>
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        font-size: 13px;
+        line-height: 1.6;
+        color: #333;
+    }
+    @media (prefers-color-scheme: dark) {
+        body { color: #ddd; }
+    }
+    h2 { font-size: 16px; margin-top: 0; }
+    code {
+        background: rgba(128,128,128,0.15);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+    }
+    .section { margin-bottom: 16px; }
+    .note { font-size: 12px; color: #888; margin-top: 16px; }
+</style>
+</head>
+<body>
+    <h2>Traktor is ready to use</h2>
+
+    <div class="section">
+        <strong>Open Traktor</strong> from your Applications folder or Launchpad. On first launch, you will be prompted to set up AI agent integrations.
+    </div>
+
+    <div class="section">
+        <strong>Command-line tool</strong> is available in your terminal:
+        <br><br>
+        <code>traktor list backup.wpress</code><br>
+        <code>traktor cat backup.wpress wp-config.php</code><br>
+        <code>traktor extract backup.wpress ./output/</code>
+    </div>
+
+    <div class="section">
+        <strong>AI agent integration</strong> — register with your coding agents:
+        <br><br>
+        <code>traktor mcp register</code>
+    </div>
+
+    <p class="note">For help, run <code>traktor --help</code> or visit github.com/servmask/Qtraktor</p>
+</body>
+</html>

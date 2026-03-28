@@ -153,9 +153,11 @@ jobs:
             --install-location / \
             traktor-component.pkg
 
-          # Build product archive (final installer PKG)
+          # Build product archive with custom distribution (welcome, conclusion, title)
           productbuild \
-            --package traktor-component.pkg \
+            --distribution scripts/macos-pkg/distribution.xml \
+            --resources scripts/macos-pkg/resources \
+            --package-path . \
             Traktor.pkg
 
           # Also keep the app tar for direct testing
