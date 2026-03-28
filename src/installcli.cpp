@@ -1,70 +1,14 @@
 #include "installcli.h"
+#include "agentconfig.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QProcess>
+#include <QSettings>
 #include <cstdio>
 
 static const QString CLI_TARGET = "/usr/local/bin/traktor";
-
-// ── MCP config registration ─────────────────────────────────────────────────
-
-static bool registerMcpConfig(QString *errorMsg)
-{
-    const QString configPath = QDir::homePath() + "/.claude.json";
-    QJsonObject root;
-
-    // Read existing config
-    QFile configFile(configPath);
-    if (configFile.exists()) {
-        if (configFile.open(QIODevice::ReadOnly)) {
-            QJsonParseError parseErr;
-            QJsonDocument doc = QJsonDocument::fromJson(configFile.readAll(), &parseErr);
-            configFile.close();
-
-            if (parseErr.error != QJsonParseError::NoError) {
-                // Invalid JSON — back up and create new
-                const QString backupPath = configPath + ".bak";
-                QFile::remove(backupPath);
-                QFile::copy(configPath, backupPath);
-                if (errorMsg) {
-                    *errorMsg += QString("Backed up invalid %1 to %2. ").arg(configPath, backupPath);
-                }
-            } else {
-                root = doc.object();
-            }
-        }
-    }
-
-    // Get or create mcpServers object
-    QJsonObject mcpServers = root["mcpServers"].toObject();
-
-    // Add traktor MCP server config
-    QJsonObject traktorConfig;
-    traktorConfig["command"] = "traktor";
-    QJsonArray argsArray;
-    argsArray.append("mcp");
-    traktorConfig["args"] = argsArray;
-
-    mcpServers["traktor"] = traktorConfig;
-    root["mcpServers"] = mcpServers;
-
-    // Write back
-    if (!configFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        if (errorMsg) {
-            *errorMsg += QString("Cannot write to %1").arg(configPath);
-        }
-        return false;
-    }
-
-    configFile.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    configFile.close();
-    return true;
-}
 
 // ── Core install logic ──────────────────────────────────────────────────────
 
@@ -84,14 +28,12 @@ InstallResult installCli()
                 result.success = true;
                 result.message = "Command-line tool is already installed at " + CLI_TARGET;
 
-                // Still register MCP in case that's missing
-                QString mcpError;
-                registerMcpConfig(&mcpError);
-                if (!mcpError.isEmpty()) {
-                    result.message += "\nMCP registration: " + mcpError;
-                } else {
-                    result.message += "\nMCP server registered in ~/.claude.json";
-                }
+                // Still register MCP with detected agents in case that's missing
+                AgentConfigManager mgr;
+                QStringList messages;
+                mgr.registerAllDetected(&messages);
+                for (const QString &msg : messages)
+                    result.message += "\n" + msg;
                 return result;
             }
             // Symlink points elsewhere — will overwrite
@@ -121,15 +63,14 @@ InstallResult installCli()
     result.success = true;
     result.message = QString("Installed command-line tool at %1").arg(CLI_TARGET);
 
-    // Register MCP config
-    QString mcpError;
-    registerMcpConfig(&mcpError);
-    if (!mcpError.isEmpty()) {
-        result.message += "\nMCP registration: " + mcpError;
-    } else {
-        result.message +=
-            "\nMCP server registered in ~/.claude.json — Claude Code will discover Traktor automatically.";
-    }
+    // Register MCP with all detected agents
+    AgentConfigManager mgr;
+    QStringList messages;
+    int agentCount = mgr.registerAllDetected(&messages);
+    for (const QString &msg : messages)
+        result.message += "\n" + msg;
+    if (agentCount > 0)
+        result.message += "\nAI agents will discover Traktor automatically.";
 
 #elif defined(Q_OS_LINUX)
     result.success = true;
@@ -163,4 +104,50 @@ int cmdInstallCli()
         fprintf(stderr, "Error: %s\n", result.message.toLocal8Bit().constData());
         return 1;
     }
+}
+
+// ── Uninstall ───────────────────────────────────────────────────────────────
+
+int cmdUninstall()
+{
+    fprintf(stdout, "This will remove Traktor CLI and all AI agent integrations.\n");
+    fprintf(stdout, "Continue? [y/N] ");
+    fflush(stdout);
+
+    char c = 0;
+    if (scanf(" %c", &c) != 1 || (c != 'y' && c != 'Y')) {
+        fprintf(stdout, "Cancelled.\n");
+        return 0;
+    }
+
+    // 1. Unregister MCP from all agents
+    AgentConfigManager mgr;
+    QStringList messages;
+    mgr.unregisterAll(&messages);
+    for (const QString &msg : messages)
+        fprintf(stdout, "%s\n", msg.toLocal8Bit().constData());
+
+#ifdef Q_OS_MAC
+    // 2. Remove CLI symlink (needs admin privileges)
+    if (QFile::exists(CLI_TARGET)) {
+        QStringList osascriptArgs;
+        osascriptArgs << "-e"
+                      << "do shell script \"rm -f /usr/local/bin/traktor\" with administrator privileges";
+        int rc = QProcess::execute("/usr/bin/osascript", osascriptArgs);
+        if (rc == 0) {
+            fprintf(stdout, "Removed CLI symlink at %s\n", CLI_TARGET.toLocal8Bit().constData());
+        } else {
+            fprintf(stderr, "Warning: could not remove CLI symlink (authorization denied)\n");
+        }
+    }
+#endif
+
+    // 3. Clear QSettings
+    QSettings("com.servmask", "Traktor").clear();
+    fprintf(stdout, "Cleared application settings.\n");
+
+    // 4. Print instructions
+    fprintf(stdout, "\nDone. Drag Traktor.app to Trash to complete uninstall.\n");
+    fprintf(stdout, "If installed via Homebrew: brew uninstall traktor\n");
+    return 0;
 }

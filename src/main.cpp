@@ -55,6 +55,7 @@ static void printGlobalHelp()
                     "  verify      Verify archive integrity (CRC32)\n"
                     "  mcp         Start MCP server for AI agent integration\n"
                     "  install-cli Install command-line tool to system PATH (macOS)\n"
+                    "  uninstall   Remove CLI, AI agent integrations, and settings\n"
                     "\n"
                     "Global options:\n"
                     "  -p, --password <pw>   Password for encrypted archives\n"
@@ -127,6 +128,10 @@ int main(int argc, char *argv[])
         if (sub == "install-cli") {
             QCoreApplication app(argc, argv);
             return cmdInstallCli();
+        }
+        if (sub == "uninstall") {
+            QCoreApplication app(argc, argv);
+            return cmdUninstall();
         }
     }
 

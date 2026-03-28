@@ -32,6 +32,8 @@ private slots:
     void onExtractionFinished(bool success);
     void onExtractionError(const QString &error);
     void installCliTool();
+    void manageAgentIntegrations();
+    void uninstallTraktor();
 
 private:
     Ui::MainWindow *ui;

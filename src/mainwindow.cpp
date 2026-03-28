@@ -7,8 +7,11 @@
 #include <QPushButton>
 #include <QProcess>
 #include <QSettings>
+#include <QTimer>
+#include "agentconfig.h"
 #include "installcli.h"
 #include "passworddialog.h"
+#include "setupdialog.h"
 #include "cryptoutils.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow)
@@ -20,10 +23,27 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(ui->dropZone, &DropOverlay::clicked, this, &MainWindow::openBackup);
     ui->clearButton->setVisible(false);
 
-    // Add Tools menu with Install CLI action (macOS only visible, but harmless on other platforms)
+    // Add Tools menu
     QMenu *toolsMenu = menuBar()->addMenu(tr("&Tools"));
     QAction *installCliAction = toolsMenu->addAction(tr("Install Command Line Tool..."));
     connect(installCliAction, &QAction::triggered, this, &MainWindow::installCliTool);
+    QAction *manageAgentsAction = toolsMenu->addAction(tr("Manage AI Agent Integrations..."));
+    connect(manageAgentsAction, &QAction::triggered, this, &MainWindow::manageAgentIntegrations);
+    toolsMenu->addSeparator();
+    QAction *uninstallAction = toolsMenu->addAction(tr("Uninstall Traktor..."));
+    connect(uninstallAction, &QAction::triggered, this, &MainWindow::uninstallTraktor);
+
+    // First-run setup dialog
+    QSettings firstRunSettings("com.servmask", "Traktor");
+    if (!firstRunSettings.value("setupComplete", false).toBool()) {
+        QTimer::singleShot(500, this, [this]() {
+            SetupDialog dialog(this);
+            if (dialog.exec() == QDialog::Accepted) {
+                QSettings s("com.servmask", "Traktor");
+                s.setValue("setupComplete", true);
+            }
+        });
+    }
 
     QSettings settings("com.servmask", "Traktor");
     restoreGeometry(settings.value("windowGeometry").toByteArray());
@@ -284,4 +304,44 @@ void MainWindow::installCliTool()
     } else {
         QMessageBox::warning(this, tr("Install CLI"), result.message);
     }
+}
+
+void MainWindow::manageAgentIntegrations()
+{
+    SetupDialog dialog(this);
+    dialog.exec();
+}
+
+void MainWindow::uninstallTraktor()
+{
+    QMessageBox::StandardButton reply =
+        QMessageBox::question(this, tr("Uninstall Traktor"),
+                              tr("This will remove all AI agent integrations and the command-line tool.\n\n"
+                                 "Continue?"),
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+    if (reply != QMessageBox::Yes)
+        return;
+
+    // Unregister MCP from all agents
+    AgentConfigManager mgr;
+    QStringList messages;
+    mgr.unregisterAll(&messages);
+
+#ifdef Q_OS_MAC
+    // Remove CLI symlink
+    if (QFile::exists("/usr/local/bin/traktor")) {
+        QStringList osascriptArgs;
+        osascriptArgs << "-e"
+                      << "do shell script \"rm -f /usr/local/bin/traktor\" with administrator privileges";
+        QProcess::execute("/usr/bin/osascript", osascriptArgs);
+    }
+#endif
+
+    // Clear settings
+    QSettings("com.servmask", "Traktor").clear();
+
+    QMessageBox::information(this, tr("Uninstall Complete"),
+                             tr("Traktor CLI and AI agent integrations have been removed.\n\n"
+                                "Drag Traktor.app to Trash to complete uninstall."));
 }

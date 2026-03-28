@@ -1,4 +1,5 @@
 #include "mcpserver.h"
+#include "agentconfig.h"
 #include "backupfile.h"
 #include "cryptoutils.h"
 #include <QBuffer>
@@ -462,8 +463,89 @@ static QJsonObject dispatch(const QJsonObject &request)
 
 // ── Main MCP loop ───────────────────────────────────────────────────────────
 
+// ── MCP sub-commands (register/unregister/status) ───────────────────────────
+
+static int cmdMcpRegister(const QStringList &args)
+{
+    bool jsonMode = args.contains("--json");
+    AgentConfigManager mgr;
+    QStringList messages;
+    int count = mgr.registerAllDetected(&messages);
+
+    if (jsonMode) {
+        QJsonObject result;
+        result["registered"] = count;
+        QJsonArray msgArray;
+        for (const QString &msg : messages)
+            msgArray.append(msg);
+        result["messages"] = msgArray;
+        fprintf(stdout, "%s\n", QJsonDocument(result).toJson(QJsonDocument::Compact).constData());
+    } else {
+        for (const QString &msg : messages)
+            fprintf(stdout, "%s\n", msg.toLocal8Bit().constData());
+        fprintf(stdout, "%d agent(s) registered.\n", count);
+    }
+    fflush(stdout);
+    return 0;
+}
+
+static int cmdMcpUnregister()
+{
+    AgentConfigManager mgr;
+    QStringList messages;
+    mgr.unregisterAll(&messages);
+
+    for (const QString &msg : messages)
+        fprintf(stdout, "%s\n", msg.toLocal8Bit().constData());
+    fflush(stdout);
+    return 0;
+}
+
+static int cmdMcpStatus(const QStringList &args)
+{
+    bool jsonMode = args.contains("--json");
+    AgentConfigManager mgr;
+    QList<AgentInfo> agents = mgr.detectAgents();
+
+    if (jsonMode) {
+        QJsonArray arr;
+        for (const AgentInfo &a : agents) {
+            QJsonObject obj;
+            obj["name"] = a.name;
+            obj["configPath"] = a.configPath;
+            obj["detected"] = a.detected;
+            obj["registered"] = a.registered;
+            arr.append(obj);
+        }
+        fprintf(stdout, "%s\n", QJsonDocument(arr).toJson(QJsonDocument::Compact).constData());
+    } else {
+        fprintf(stdout, "%-15s %-10s %-10s\n", "Agent", "Detected", "Registered");
+        for (const AgentInfo &a : agents) {
+            fprintf(stdout, "%-15s %-10s %-10s\n", a.name.toLocal8Bit().constData(), a.detected ? "yes" : "no",
+                    a.detected ? (a.registered ? "yes" : "no") : "-");
+        }
+    }
+    fflush(stdout);
+    return 0;
+}
+
+// ── Main MCP entry point ────────────────────────────────────────────────────
+
 int cmdMcp()
 {
+    // Check for sub-subcommands: traktor mcp register/unregister/status
+    QStringList args = QCoreApplication::arguments();
+    if (args.size() >= 3) {
+        const QString sub = args.at(2);
+        if (sub == "register")
+            return cmdMcpRegister(args);
+        if (sub == "unregister")
+            return cmdMcpUnregister();
+        if (sub == "status")
+            return cmdMcpStatus(args);
+    }
+
+    // No sub-subcommand: start MCP JSON-RPC server
     QTextStream in(stdin);
     QTextStream out(stdout);
 

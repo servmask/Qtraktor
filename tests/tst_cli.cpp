@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
+#include "agentconfig.h"
 #include "backupfile.h"
 #include "clihandler.h"
 #include "mcpserver.h"
@@ -534,6 +535,195 @@ private slots:
         f.close();
 
         QVERIFY(parseErr.error != QJsonParseError::NoError);
+    }
+
+    // ── AgentConfigManager tests ────────────────────────────────────────
+
+    void testDetectAgentsReturnsList()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+        AgentConfigManager mgr(tmpDir.path());
+        QList<AgentInfo> agents = mgr.detectAgents();
+        // Should return entries for Claude and Gemini
+        QCOMPARE(agents.size(), 2);
+        QCOMPARE(agents.at(0).name, QString("Claude Code"));
+        QCOMPARE(agents.at(1).name, QString("Gemini CLI"));
+    }
+
+    void testRegisterCreatesNewConfig()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+        AgentConfigManager mgr(tmpDir.path());
+
+        QString errorMsg;
+        bool ok = mgr.registerAgent(AGENT_CLAUDE, &errorMsg);
+        QVERIFY(ok);
+
+        // Verify file was created with correct structure
+        QFile f(tmpDir.path() + "/.claude.json");
+        QVERIFY(f.exists());
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+
+        QVERIFY(root.contains("mcpServers"));
+        QJsonObject servers = root["mcpServers"].toObject();
+        QVERIFY(servers.contains("traktor"));
+        QJsonObject traktor = servers["traktor"].toObject();
+        QVERIFY(!traktor["command"].toString().isEmpty());
+    }
+
+    void testRegisterMergesIntoExisting()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        // Create existing config with another server
+        QJsonObject otherServer;
+        otherServer["command"] = "other-tool";
+        QJsonObject mcpServers;
+        mcpServers["other"] = otherServer;
+        QJsonObject root;
+        root["mcpServers"] = mcpServers;
+        root["userKey"] = "preserved";
+
+        QFile f(tmpDir.path() + "/.claude.json");
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(QJsonDocument(root).toJson());
+        f.close();
+
+        // Register traktor
+        AgentConfigManager mgr(tmpDir.path());
+        bool ok = mgr.registerAgent(AGENT_CLAUDE);
+        QVERIFY(ok);
+
+        // Verify merge
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QJsonObject result = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+
+        QCOMPARE(result["userKey"].toString(), QString("preserved"));
+        QJsonObject servers = result["mcpServers"].toObject();
+        QVERIFY(servers.contains("other"));
+        QVERIFY(servers.contains("traktor"));
+    }
+
+    void testRegisterHandlesInvalidJson()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        // Write invalid JSON
+        QFile f(tmpDir.path() + "/.claude.json");
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("not json {{{");
+        f.close();
+
+        AgentConfigManager mgr(tmpDir.path());
+        bool ok = mgr.registerAgent(AGENT_CLAUDE);
+        QVERIFY(ok);
+
+        // Backup should exist
+        QVERIFY(QFile::exists(tmpDir.path() + "/.claude.json.bak"));
+
+        // New file should be valid JSON with traktor
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QJsonObject result = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        QVERIFY(result["mcpServers"].toObject().contains("traktor"));
+    }
+
+    void testRegisterIdempotent()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+        AgentConfigManager mgr(tmpDir.path());
+
+        // Register twice
+        mgr.registerAgent(AGENT_CLAUDE);
+        bool ok = mgr.registerAgent(AGENT_CLAUDE);
+        QVERIFY(ok);
+
+        // Should still have exactly one traktor entry
+        QFile f(tmpDir.path() + "/.claude.json");
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        QVERIFY(root["mcpServers"].toObject().contains("traktor"));
+    }
+
+    void testUnregisterRemovesKey()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+        AgentConfigManager mgr(tmpDir.path());
+
+        // Register then unregister
+        mgr.registerAgent(AGENT_CLAUDE);
+        bool ok = mgr.unregisterAgent(AGENT_CLAUDE);
+        QVERIFY(ok);
+
+        // traktor key should be gone
+        QFile f(tmpDir.path() + "/.claude.json");
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        QVERIFY(!root["mcpServers"].toObject().contains("traktor"));
+    }
+
+    void testUnregisterNoopIfMissing()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+        AgentConfigManager mgr(tmpDir.path());
+
+        // Unregister without registering
+        bool ok = mgr.unregisterAgent(AGENT_CLAUDE);
+        QVERIFY(ok); // Should succeed (no-op)
+    }
+
+    void testUnregisterNoopIfFileDoesNotExist()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+        AgentConfigManager mgr(tmpDir.path());
+
+        bool ok = mgr.unregisterAgent(AGENT_GEMINI);
+        QVERIFY(ok); // File doesn't exist, no-op
+    }
+
+    void testRegisterCreatesDirectory()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+        AgentConfigManager mgr(tmpDir.path());
+
+        // Gemini config is in ~/.gemini/settings.json — directory doesn't exist yet
+        bool ok = mgr.registerAgent(AGENT_GEMINI);
+        QVERIFY(ok);
+        QVERIFY(QFile::exists(tmpDir.path() + "/.gemini/settings.json"));
+    }
+
+    void testRegisterAllDetectedReturnsCount()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        // Create a fake .claude.json to make Claude "detected"
+        QFile f(tmpDir.path() + "/.claude.json");
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("{}");
+        f.close();
+
+        AgentConfigManager mgr(tmpDir.path());
+        QStringList messages;
+        int count = mgr.registerAllDetected(&messages);
+
+        // At least Claude should be registered (Gemini depends on system)
+        QVERIFY(count >= 1);
+        QVERIFY(!messages.isEmpty());
     }
 };
 

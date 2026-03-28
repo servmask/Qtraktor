@@ -79,6 +79,8 @@ SOURCES += \
         src/clihandler.cpp \
         src/mcpserver.cpp \
         src/installcli.cpp \
+        src/agentconfig.cpp \
+        src/setupdialog.cpp \
         src/passworddialog.cpp \
         src/appdelegate.cpp \
         src/dropoverlay.cpp \
@@ -100,6 +102,8 @@ HEADERS += \
         src/clihandler.h \
         src/mcpserver.h \
         src/installcli.h \
+        src/agentconfig.h \
+        src/setupdialog.h \
         src/passworddialog.h \
         src/appdelegate.h \
         src/dropoverlay.h \

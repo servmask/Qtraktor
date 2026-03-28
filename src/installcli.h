@@ -15,4 +15,7 @@ InstallResult installCli();
 // CLI entry point for "traktor install-cli" subcommand.
 int cmdInstallCli();
 
+// CLI entry point for "traktor uninstall" subcommand.
+int cmdUninstall();
+
 #endif // INSTALLCLI_H

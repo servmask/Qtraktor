@@ -59,6 +59,7 @@ SOURCES += \
     ../src/clihandler.cpp \
     ../src/mcpserver.cpp \
     ../src/installcli.cpp \
+    ../src/agentconfig.cpp \
     $$BZIP2_DIR/blocksort.c \
     $$BZIP2_DIR/huffman.c \
     $$BZIP2_DIR/crctable.c \
@@ -73,4 +74,5 @@ HEADERS += \
     ../src/extractionworker.h \
     ../src/clihandler.h \
     ../src/mcpserver.h \
-    ../src/installcli.h
+    ../src/installcli.h \
+    ../src/agentconfig.h
