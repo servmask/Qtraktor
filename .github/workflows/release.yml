@@ -313,82 +313,83 @@ jobs:
             Traktor-x86_64-${{ env.VERSION }}.AppImage/Traktor-x86_64-${{ env.VERSION }}.AppImage \
             --repo "${{ github.repository }}"
 
-      - name: Upload to BunnyCDN
+      - name: Submit to VirusTotal
+        if: secrets.VT_API_KEY != ''
         env:
-          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
-          BUNNY_STORAGE_ZONE: ${{ secrets.BUNNY_STORAGE_ZONE }}
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
         run: |
-          STORAGE_URL="https://storage.bunnycdn.com/$BUNNY_STORAGE_ZONE"
-          FAILED=0
+          submit_to_vt() {
+            local file="$1"
+            local name="$2"
+            echo "Submitting $name to VirusTotal..."
 
-          upload() {
-            local remote_name="$1"
-            local local_file="$2"
-            echo "Uploading $remote_name..."
+            # Get upload URL (required for files that may exceed 32MB)
+            upload_url=$(curl -s --request GET \
+              --url "https://www.virustotal.com/api/v3/files/upload_url" \
+              --header "x-apikey: $VT_API_KEY" | jq -r '.data')
 
-            response=$(curl -sS --request PUT --url "$STORAGE_URL/$remote_name" \
-              --header "AccessKey: $BUNNY_STORAGE_KEY" \
-              --upload-file "$local_file" \
-              -w "\n%{http_code}")
+            # Upload file
+            response=$(curl -s --request POST \
+              --url "$upload_url" \
+              --header "x-apikey: $VT_API_KEY" \
+              --form "file=@$file")
 
-            http_code=$(echo "$response" | tail -n1)
-
-            if [ "$http_code" -eq 201 ] || [ "$http_code" -eq 200 ]; then
-              echo "Uploaded $remote_name"
-            else
-              body=$(echo "$response" | head -n-1)
-              echo "::error::Failed to upload $remote_name (HTTP $http_code): $body"
-              FAILED=1
+            analysis_id=$(echo "$response" | jq -r '.data.id // empty')
+            if [ -z "$analysis_id" ]; then
+              echo "::warning::Failed to submit $name to VirusTotal"
+              echo "VT_${name}_LINK=" >> $GITHUB_ENV
+              return
             fi
+
+            # Wait for analysis to complete (poll up to 5 minutes)
+            for i in $(seq 1 30); do
+              sleep 10
+              status=$(curl -s --request GET \
+                --url "https://www.virustotal.com/api/v3/analyses/$analysis_id" \
+                --header "x-apikey: $VT_API_KEY" | jq -r '.data.attributes.status')
+              echo "  $name: $status (attempt $i/30)"
+              if [ "$status" = "completed" ]; then
+                break
+              fi
+            done
+
+            # Get the SHA-256 from the analysis to build the permalink
+            sha256=$(curl -s --request GET \
+              --url "https://www.virustotal.com/api/v3/analyses/$analysis_id" \
+              --header "x-apikey: $VT_API_KEY" | jq -r '.meta.file_info.sha256 // empty')
+
+            if [ -n "$sha256" ]; then
+              echo "VT_${name}=https://www.virustotal.com/gui/file/$sha256" >> $GITHUB_ENV
+              echo "  $name: https://www.virustotal.com/gui/file/$sha256"
+            else
+              echo "VT_${name}=" >> $GITHUB_ENV
+              echo "::warning::Could not get SHA-256 for $name"
+            fi
+
+            # Rate limit: free tier allows 4 req/min, wait between files
+            sleep 15
           }
 
-          # Upload versioned files
-          upload "Traktor-${{ env.VERSION }}.dmg" \
-            "Traktor-${{ env.VERSION }}.dmg/Traktor-${{ env.VERSION }}.dmg"
+          submit_to_vt "Traktor-${{ env.VERSION }}.dmg/Traktor-${{ env.VERSION }}.dmg" "DMG"
+          submit_to_vt "Traktor-${{ env.VERSION }}.exe/Traktor-${{ env.VERSION }}.exe" "EXE"
+          submit_to_vt "Traktor-x86_64-${{ env.VERSION }}.AppImage/Traktor-x86_64-${{ env.VERSION }}.AppImage" "APPIMAGE"
 
-          upload "Traktor-${{ env.VERSION }}.exe" \
-            "Traktor-${{ env.VERSION }}.exe/Traktor-${{ env.VERSION }}.exe"
-
-          upload "Traktor-x86_64-${{ env.VERSION }}.AppImage" \
-            "Traktor-x86_64-${{ env.VERSION }}.AppImage/Traktor-x86_64-${{ env.VERSION }}.AppImage"
-
-          # Upload latest files (stable download links)
-          upload "Traktor-latest.dmg" \
-            "Traktor-${{ env.VERSION }}.dmg/Traktor-${{ env.VERSION }}.dmg"
-
-          upload "Traktor-latest.exe" \
-            "Traktor-${{ env.VERSION }}.exe/Traktor-${{ env.VERSION }}.exe"
-
-          upload "Traktor-x86_64-latest.AppImage" \
-            "Traktor-x86_64-${{ env.VERSION }}.AppImage/Traktor-x86_64-${{ env.VERSION }}.AppImage"
-
-          # Upload version.txt (last, so it only updates if uploads succeeded)
-          if [ "$FAILED" -eq 0 ]; then
-            echo -n "${{ env.VERSION }}" > version.txt
-            upload "version.txt" "version.txt"
-          fi
-
-          # Track failure but continue
-          echo "BUNNY_UPLOAD_FAILED=$FAILED" >> $GITHUB_ENV
-
-      - name: Purge BunnyCDN cache
+      - name: Update release notes with VirusTotal links
+        if: secrets.VT_API_KEY != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Purging BunnyCDN cache for PullZone ID: ${{ secrets.BUNNY_PULL_ZONE_ID }}"
+          # Build VT section only with successful scans
+          VT_SECTION=""
+          [ -n "$VT_DMG" ] && VT_SECTION="${VT_SECTION}| macOS (.dmg) | [View scan results]($VT_DMG) |"$'\n'
+          [ -n "$VT_EXE" ] && VT_SECTION="${VT_SECTION}| Windows (.exe) | [View scan results]($VT_EXE) |"$'\n'
+          [ -n "$VT_APPIMAGE" ] && VT_SECTION="${VT_SECTION}| Linux (.AppImage) | [View scan results]($VT_APPIMAGE) |"$'\n'
 
-          response=$(curl -sS --request POST \
-            --url "https://api.bunny.net/pullzone/${{ secrets.BUNNY_PULL_ZONE_ID }}/purgeCache" \
-            --header "AccessKey: ${{ secrets.BUNNY_API_KEY }}" \
-            -w "\n%{http_code}")
-
-          http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | head -n-1)
-
-          if [ "$http_code" -eq 204 ] || [ "$http_code" -eq 200 ]; then
-            echo "Cache purge successful"
-          else
-            echo "::error::Cache purge failed (HTTP $http_code): $body"
+          if [ -n "$VT_SECTION" ]; then
+            EXISTING=$(gh release view "${{ github.event.release.tag_name }}" --json body -q .body --repo "${{ github.repository }}")
+            APPEND=$(printf '\n\n---\n\n### VirusTotal Scan Results\n\n| File | Report |\n|------|--------|\n%s' "$VT_SECTION")
+            gh release edit "${{ github.event.release.tag_name }}" \
+              --notes "${EXISTING}${APPEND}" \
+              --repo "${{ github.repository }}"
           fi
 
-      - name: Check upload results
-        if: env.BUNNY_UPLOAD_FAILED == '1'
-        run: echo "::warning::One or more BunnyCDN uploads failed"

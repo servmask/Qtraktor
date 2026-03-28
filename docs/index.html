@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traktor - WPRESS Extractor</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <meta name="description" content="Free, open source .wpress extractor for WordPress backups. Available for macOS, Windows, and Linux.">
+  <style>
+    :root {
+      --bg: #0b0f13;
+      --surface: #151b23;
+      --surface-hi: #1b2430;
+      --border: #2a3140;
+      --border-hi: #3d8bfd;
+      --text: #e6edf3;
+      --text-dim: #8b949e;
+      --accent: #4c8ef7;
+      --accent-glow: rgba(76, 142, 247, 0.12);
+      --green: #3fb950;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 56px 24px 40px;
+    }
+
+    /* ---- Hero ---- */
+    .hero {
+      text-align: center;
+      margin-bottom: 44px;
+    }
+    .hero img { width: 80px; height: 80px; margin-bottom: 16px; }
+    .hero h1 { font-size: 2.2em; font-weight: 700; letter-spacing: -0.025em; margin-bottom: 6px; }
+    .hero .tagline { color: var(--text-dim); font-size: 1.1em; }
+    .hero .sub { color: var(--text-dim); font-size: 0.88em; margin-top: 2px; }
+    .pill {
+      display: inline-block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3px 13px;
+      font-size: 0.8em;
+      color: var(--green);
+      margin-top: 14px;
+      font-weight: 500;
+    }
+
+    /* ---- Download grid ---- */
+    .dl-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 44px;
+    }
+
+    .dl-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 16px 18px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      position: relative;
+    }
+
+    .dl-card:hover {
+      border-color: var(--border-hi);
+    }
+
+    .dl-card.primary {
+      border-color: var(--border-hi);
+      box-shadow: 0 0 0 1px var(--border-hi), 0 4px 24px var(--accent-glow);
+      background: var(--surface-hi);
+    }
+
+    .dl-card .badge {
+      position: absolute;
+      top: -9px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.62em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 2px 10px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+
+    .dl-card .os-icon { margin-bottom: 4px; margin-top: 4px; color: var(--text-dim); }
+    .dl-card .os-name { font-weight: 700; font-size: 1em; }
+    .dl-card .os-arch { color: var(--text-dim); font-size: 0.75em; line-height: 1.3; }
+
+    .dl-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      width: 100%;
+      margin-top: 12px;
+      padding: 9px 0;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.84em;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+
+    .dl-btn:hover { opacity: 0.88; }
+
+    .dl-btn svg { width: 14px; height: 14px; }
+
+    .dl-meta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 8px;
+      font-size: 0.72em;
+      color: var(--text-dim);
+    }
+
+    .dl-meta a {
+      color: var(--text-dim);
+      text-decoration: none;
+    }
+
+    .dl-meta a:hover { color: var(--green); }
+
+    /* ---- Sections ---- */
+    .sec-label {
+      font-size: 0.78em;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 14px;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 44px;
+    }
+
+    .feat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 13px 14px;
+    }
+
+    .feat .fl { font-weight: 600; font-size: 0.84em; margin-bottom: 2px; }
+    .feat .fd { color: var(--text-dim); font-size: 0.76em; }
+
+    .clog {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 22px;
+      margin-bottom: 44px;
+      font-size: 0.88em;
+      line-height: 1.7;
+    }
+
+    .clog h3 { font-size: 0.95em; margin-bottom: 10px; }
+    .clog ul { padding-left: 18px; color: var(--text-dim); }
+    .clog li { margin-bottom: 3px; }
+    .clog a { color: var(--accent); text-decoration: none; }
+
+    .footer {
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.76em;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    .footer a { color: var(--accent); text-decoration: none; }
+
+    .loading { text-align: center; color: var(--text-dim); padding: 32px; }
+
+    .error-msg {
+      grid-column: 1 / -1;
+      background: #2d1b1b;
+      border: 1px solid #6e3630;
+      border-radius: 8px;
+      padding: 14px;
+      color: #f78166;
+      font-size: 0.88em;
+      text-align: center;
+    }
+    .error-msg a { color: #f78166; }
+
+    @media (max-width: 600px) {
+      .dl-grid { grid-template-columns: 1fr; max-width: 320px; margin-left: auto; margin-right: auto; }
+      .features { grid-template-columns: 1fr 1fr; }
+      .hero h1 { font-size: 1.8em; }
+      .container { padding: 40px 16px 32px; }
+    }
+
+    @media (max-width: 400px) {
+      .features { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <img src="traktor.svg" alt="Traktor">
+      <h1>Traktor</h1>
+      <p class="tagline">Double-click a .wpress file. It just works.</p>
+      <p class="sub">Extract WordPress backups created by All-in-One WP Migration.</p>
+      <span class="pill" id="version">...</span>
+    </div>
+
+    <div class="dl-grid" id="downloads">
+      <div class="loading" style="grid-column:1/-1">Fetching latest release...</div>
+    </div>
+
+    <div class="sec-label">Features</div>
+    <div class="features">
+      <div class="feat"><div class="fl">Auto-Extract</div><div class="fd">Double-click to extract, no UI needed</div></div>
+      <div class="feat"><div class="fl">Encrypted</div><div class="fd">AES-256-CBC with password prompt</div></div>
+      <div class="feat"><div class="fl">Compressed</div><div class="fd">zlib and bzip2 support</div></div>
+      <div class="feat"><div class="fl">Drag & Drop</div><div class="fd">Drop onto the window or app icon</div></div>
+      <div class="feat"><div class="fl">Multi-File</div><div class="fd">Queue multiple archives</div></div>
+      <div class="feat"><div class="fl">Cross-Platform</div><div class="fd">macOS, Windows, Linux</div></div>
+    </div>
+
+    <div class="sec-label">Changelog</div>
+    <div class="clog" id="changelog">
+      <div class="loading">Loading...</div>
+    </div>
+
+    <div class="footer">
+      Open source under <a href="https://github.com/servmask/Qtraktor/blob/master/LICENSE">GPLv3</a>.
+      Built with C++ and Qt.
+      <a href="https://github.com/servmask/Qtraktor">GitHub</a>
+    </div>
+  </div>
+
+  <script>
+    const REPO = 'servmask/Qtraktor';
+    const DL_SVG = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14ZM7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg>';
+
+    const OS_MAP = {
+      '.dmg':      { os:'macOS',   key:'macos',   icon:'<svg viewBox="0 0 384 512" width="32" height="32" fill="currentColor"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>', arch:'Universal (Intel + Apple\u00a0Silicon)', fmt:'DMG' },
+      '.exe':      { os:'Windows', key:'windows', icon:'<svg viewBox="0 0 448 512" width="30" height="30" fill="currentColor"><path d="M0 93.7l183.6-25.3v177.4H0V93.7zm0 324.6l183.6 25.3V268.4H0v149.9zm203.8 28L448 480V268.4H203.8v177.9zm0-380.6v180.1H448V32L203.8 65.7z"/></svg>', arch:'64-bit Installer',                       fmt:'EXE' },
+      '.appimage': { os:'Linux',   key:'linux',   icon:'<svg viewBox="0 0 448 512" width="30" height="30" fill="currentColor"><path d="M220.8 123.3c1 .5 1.8 1.7 3 1.7 1.1 0 2.8-.4 2.9-1.5.2-1.4-1.9-2.3-3.2-2.9-1.7-.7-3.9-1-5.5-.1-.4.2-.8.7-.6 1.1.3 1.3 2.3 1.1 3.4 1.7zm-21.9 1.7c1.2 0 2-1.2 3-1.7 1.1-.6 3.1-.4 3.5-1.6.2-.4-.2-.9-.6-1.1-1.6-.9-3.8-.6-5.5.1-1.3.6-3.4 1.5-3.2 2.9.1 1 1.8 1.5 2.8 1.4zM420 403.8c-3.6-4-5.3-11.6-7.2-19.7-1.8-8.1-3.9-16.8-10.5-22.4-1.3-1.1-2.6-2.1-4-2.9-1.3-.8-2.7-1.5-4.1-2 9.2-27.3 5.6-54.5-3.7-79.1-11.4-30.1-31.3-56.4-46.5-74.4-17.1-21.5-33.7-41.9-33.4-72C311.1 85.4 315.7.1 234.8 0 132.4-.2 158 103.4 156.9 135.2c-1.7 23.4-6.4 41.8-22.5 64.7-18.9 22.5-45.5 58.8-58.1 96.7-6 17.9-8.8 36.1-6.2 53.3-6.5 5.8-11.4 14.7-16.6 20.2-4.2 4.3-10.3 5.9-17 8.3s-14 6-18.5 14.5c-2.1 3.9-2.8 8.1-2.8 12.4 0 3.9.6 7.9 1.2 11.8 1.2 8.1 2.5 15.7.8 20.8-5.2 14.4-5.9 24.4-2.2 31.7 3.8 7.3 11.4 10.5 20.1 12.3 17.3 3.6 40.8 2.7 59.3 12.5 19.8 10.4 39.9 14.1 55.9 10.4 11.6-2.6 21.1-9.6 25.9-20.2 12.5-.1 26.3-5.4 48.3-6.6 14.9-1.2 33.6 5.3 55.1 4.1.6 2.3 1.4 4.6 2.5 6.7v.1c8.3 16.7 23.8 24.3 40.3 23 16.6-1.3 34.1-11 48.3-27.9 13.6-16.4 36-23.2 50.9-32.2 7.4-4.5 13.4-10.1 13.9-18.3.4-8.2-4.4-17.3-15.5-29.7zM223.7 87.3c9.8-22.2 34.2-21.8 44-.4 6.5 14.2 3.6 30.9-4.3 40.4-1.6-.8-5.9-2.6-12.6-4.9 1.1-1.2 3.1-2.7 3.9-4.6 4.8-11.8-.2-27-9.1-27.3-7.3-.5-13.9 10.8-11.8 23-4.1-2-9.4-3.5-13-4.4-1-6.9-.3-14.6 2.9-21.8zM183 75.8c10.1 0 20.8 14.2 19.1 33.5-3.5 1-7.1 2.5-10.2 4.6 1.2-8.9-3.3-20.1-9.6-19.6-8.4.7-9.8 21.2-1.8 28.1 1 .8 1.9-.2-5.9 5.5-15.6-14.6-10.5-52.1 8.4-52.1zm-13.6 60.7c6.2-4.6 13.6-10 14.1-10.5 4.7-4.2 13.6-3.5 17.2 0 .5.5 7.9 5.9 14.1 10.5 12.8 9.5 28.3 21.2 29.8 21.8 1.6.7 3.3.3 4.4-1.1 1.1-1.4 1-3.4-.1-4.8-.4-.4-4-3.6-7.4-6.9 8.6 3 18.3 8.7 25.5 18.2 7 9.2 10.5 20 11.2 30.9.2 4.3 0 8.6-.6 12.6-26 .7-41.6 11.8-52.4 29-5.6 9.1-7.3 20.5-7.4 31.2.1 3.5.5 7 1 10.4-1.5 1.3-3.6 2-5.5 2.4h-.2c-1.9-.4-4.1-1.1-5.5-2.4.5-3.4.9-6.9 1-10.4-.1-10.7-1.8-22.1-7.4-31.2-10.8-17.2-26.4-28.3-52.4-29-.6-4-.8-8.3-.6-12.6.7-10.9 4.2-21.7 11.2-30.9 7.2-9.5 16.9-15.2 25.5-18.2-3.4 3.3-7 6.5-7.4 6.9-1.1 1.4-1.2 3.4-.1 4.8 1.1 1.4 2.8 1.8 4.4 1.1 1.5-.6 17-12.3 29.8-21.8z"/></svg>', arch:'x86_64 AppImage',                       fmt:'AppImage' }
+    };
+
+    function fmtSize(b) { return b < 1048576 ? (b/1024).toFixed(0)+' KB' : (b/1048576).toFixed(1)+' MB'; }
+
+    function userOS() {
+      const u = navigator.userAgent;
+      return u.includes('Mac') ? 'macos' : u.includes('Win') ? 'windows' : 'linux';
+    }
+
+    function parseVTLinks(body) {
+      if (!body) return {};
+      const links = {};
+      const re = /\|\s*(macOS|Windows|Linux)[^|]*\|\s*\[View scan results\]\(([^)]+)\)/g;
+      let m;
+      while ((m = re.exec(body)) !== null) {
+        const key = m[1] === 'macOS' ? 'macos' : m[1] === 'Windows' ? 'windows' : 'linux';
+        links[key] = m[2];
+      }
+      return links;
+    }
+
+    function card(a, primary, vtLinks) {
+      const vtUrl = vtLinks[a.info.key];
+      const vtHtml = vtUrl
+        ? `<a href="${vtUrl}" target="_blank" rel="noopener">\uD83D\uDEE1\uFE0F Clean</a>`
+        : `<a href="https://www.virustotal.com/gui/home/upload" target="_blank" rel="noopener" title="Upload to VirusTotal to verify">\uD83D\uDEE1\uFE0F Verify</a>`;
+      return `<div class="dl-card${primary?' primary':''}">
+        ${primary?'<span class="badge">Your platform</span>':''}
+        <span class="os-icon">${a.info.icon}</span>
+        <span class="os-name">${a.info.os}</span>
+        <span class="os-arch">${a.info.arch}</span>
+        <a href="${a.browser_download_url}" class="dl-btn">${DL_SVG} Download ${a.info.fmt}</a>
+        <div class="dl-meta">
+          <span>${fmtSize(a.size)}</span>
+          ${vtHtml}
+        </div>
+      </div>`;
+    }
+
+    async function init() {
+      try {
+        const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`);
+        if (!r.ok) throw new Error(r.status);
+        const rel = await r.json();
+
+        document.getElementById('version').textContent = 'v' + rel.tag_name.replace(/^v/, '') + ' / Latest';
+
+        const os = userOS();
+        const assets = rel.assets
+          .map(a => {
+            const ext = Object.keys(OS_MAP).find(e => a.name.toLowerCase().endsWith(e));
+            return ext ? { ...a, info: OS_MAP[ext] } : null;
+          })
+          .filter(Boolean)
+          .sort((a,b) => a.info.key===os ? -1 : b.info.key===os ? 1 : 0);
+
+        const vtLinks = parseVTLinks(rel.body);
+        document.getElementById('downloads').innerHTML = assets.map((a,i) => card(a, i===0, vtLinks)).join('');
+
+        const cl = document.getElementById('changelog');
+        if (rel.body) {
+          let b = rel.body.replace(/^## .+$/gm,'').replace(/\*\*Full Changelog\*\*.+$/gm,'').trim();
+          b = b.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2">$1</a>');
+          b = b.replace(/^\* (.+)$/gm,'<li>$1</li>');
+          b = b.replace(/((?:<li>.+<\/li>\n?)+)/g,'<ul>$1</ul>');
+          b = b.replace(/^### (.+)$/gm,'<h3>$1</h3>');
+          b = b.replace(/\n\n/g,'<br>');
+          cl.innerHTML = `<h3>What's new in ${rel.tag_name}</h3>${b}`;
+        } else {
+          cl.innerHTML = '<p style="color:var(--text-dim)">No changelog yet.</p>';
+        }
+      } catch(e) {
+        document.getElementById('downloads').innerHTML =
+          `<div class="error-msg">Could not load releases. <a href="https://github.com/${REPO}/releases/latest">Download from GitHub</a>.</div>`;
+        document.getElementById('version').textContent = '\u2014';
+        document.getElementById('changelog').innerHTML = '';
+      }
+    }
+    init();
+  </script>
+</body>
+</html>
