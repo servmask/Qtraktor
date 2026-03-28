@@ -146,12 +146,32 @@ jobs:
           echo "App bundle size: $(du -sh Traktor.app | cut -f1)"
 
           # Build component package using --component (proper .app bundle handling)
+          # --ownership recommended: set all files to root:wheel
+          # Note: do NOT use --no-relocate flag (it doesn't exist in pkgbuild).
+          # Instead, we create a component plist to disable relocation.
+          cat > /tmp/component.plist << 'PLISTEOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<array>
+  <dict>
+    <key>BundleIsRelocatable</key>
+    <false/>
+    <key>BundleOverwriteAction</key>
+    <string>upgrade</string>
+  </dict>
+</array>
+</plist>
+PLISTEOF
+
           pkgbuild \
             --component Traktor.app \
+            --component-plist /tmp/component.plist \
             --scripts scripts/macos-pkg \
             --identifier com.servmask.traktor \
             --version 0.0.0-dev \
             --install-location /Applications \
+            --ownership recommended \
             traktor-component.pkg
 
           # Verify component package payload
