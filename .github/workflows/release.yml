@@ -321,6 +321,76 @@ jobs:
             Traktor-x86_64-${{ env.VERSION }}.AppImage/Traktor-x86_64-${{ env.VERSION }}.AppImage \
             --repo "${{ github.repository }}"
 
+      - name: Update Homebrew Cask
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || github.token }}
+        run: |
+          VERSION="${{ env.VERSION }}"
+          # Strip leading 'v' if present
+          CLEAN_VERSION="${VERSION#v}"
+          DMG_FILE="Traktor-${VERSION}.dmg/Traktor-${VERSION}.dmg"
+
+          if [ ! -f "$DMG_FILE" ]; then
+            echo "::warning::DMG not found at $DMG_FILE, skipping Homebrew update"
+            exit 0
+          fi
+
+          SHA256=$(shasum -a 256 "$DMG_FILE" | awk '{print $1}')
+          echo "DMG SHA256: $SHA256"
+
+          # Clone the tap repo, update the cask, push
+          git clone https://x-access-token:${GH_TOKEN}@github.com/servmask/homebrew-traktor.git /tmp/homebrew-tap
+          cd /tmp/homebrew-tap
+
+          cat > Casks/traktor.rb << CASKEOF
+          cask "traktor" do
+            version "$CLEAN_VERSION"
+            sha256 "$SHA256"
+
+            url "https://github.com/servmask/Qtraktor/releases/download/v#{version}/Traktor-v#{version}.dmg"
+            name "Traktor"
+            desc "Extract WordPress .wpress backup files with CLI and MCP server"
+            homepage "https://github.com/servmask/Qtraktor"
+
+            app "Traktor.app"
+            binary "#{appdir}/Traktor.app/Contents/MacOS/Traktor", target: "traktor"
+
+            postflight do
+              ohai "To register Traktor with your AI coding agents, run:"
+              ohai "  traktor mcp register"
+            end
+
+            caveats <<~EOS
+              To register Traktor with your AI coding agents (Claude Code, Gemini CLI):
+                traktor mcp register
+
+              To check which agents are detected:
+                traktor mcp status
+
+              To uninstall completely:
+                traktor uninstall
+                brew uninstall traktor
+            EOS
+
+            zap trash: [
+              "~/Library/Preferences/com.servmask.Traktor.plist",
+            ]
+          end
+          CASKEOF
+
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' Casks/traktor.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/traktor.rb
+          git diff --cached --quiet && echo "No changes to Homebrew Cask" && exit 0
+          git commit -m "chore: update Traktor to v${CLEAN_VERSION}
+
+          SHA256: ${SHA256}
+          Release: https://github.com/servmask/Qtraktor/releases/tag/${VERSION}"
+          git push
+
       - name: Submit to VirusTotal
         if: ${{ env.HAS_VT_KEY == 'true' }}
         env:
