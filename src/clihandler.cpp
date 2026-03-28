@@ -61,17 +61,15 @@ static void addCommonOptions(QCommandLineParser &parser)
 {
     parser.addHelpOption();
 
-    QCommandLineOption passwordOpt(QStringList() << "p"
-                                                 << "password",
-                                   "Password for encrypted backup", "password");
-    parser.addOption(passwordOpt);
+    QStringList pwNames;
+    pwNames << "p" << "password";
+    parser.addOption(QCommandLineOption(pwNames, "Password for encrypted backup", "password"));
 
     parser.addOption(QCommandLineOption("json", "Machine-readable JSON output"));
 
-    QCommandLineOption quietOpt(QStringList() << "q"
-                                              << "quiet",
-                                "Suppress progress output");
-    parser.addOption(quietOpt);
+    QStringList quietNames;
+    quietNames << "q" << "quiet";
+    parser.addOption(QCommandLineOption(quietNames, "Suppress progress output"));
 }
 
 // Get password from flag or environment
