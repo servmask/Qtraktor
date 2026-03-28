@@ -8,14 +8,46 @@
 #include <QString>
 #include <QDateTime>
 #include <QRegularExpression>
+#include <functional>
 #include <zlib.h>
 #include "cryptoutils.h"
+
+// QIODevice sink that computes CRC32 on write and discards data.
+// Used by verify to check CRC without disk writes or memory bloat.
+// Pure sink — no downstream device, no buffering.
+class CrcDevice : public QIODevice
+{
+public:
+    CrcDevice() : m_crc(::crc32(0L, Z_NULL, 0)) { open(QIODevice::WriteOnly); }
+
+    QString result() const { return QString::asprintf("%08x", static_cast<unsigned int>(m_crc)); }
+
+protected:
+    qint64 writeData(const char *data, qint64 len) override
+    {
+        m_crc = ::crc32(m_crc, reinterpret_cast<const Bytef *>(data), static_cast<uInt>(len));
+        return len;
+    }
+    qint64 readData(char *, qint64) override { return -1; }
+
+private:
+    uLong m_crc;
+};
 
 class BackupFile : public QFile
 {
     Q_OBJECT
 
 public:
+    struct HeaderInfo {
+        QString fileName;
+        QString filePath;
+        QString crc32;
+        QString mtime;
+        qint64 fileSize = 0;
+        bool isEof = false;
+    };
+
     explicit BackupFile(const QString &filename, const QString &password = QString())
         : QFile(filename), bytesRead(0), filePassword(password), isEncrypted(false), isV2(false),
           compressionType(COMPRESSION_NONE), abortFlag(nullptr)
@@ -27,6 +59,23 @@ public:
     CompressionType getCompressionType() const { return compressionType; }
 
     void setAbortFlag(QAtomicInt *flag) { abortFlag = flag; }
+
+    // Iterate all file headers without extracting content.
+    // Calls callback for each non-EOF entry. Skips content via seek().
+    // Returns false on read error. Requires open file with loadConfig() called.
+    bool iterateHeaders(std::function<bool(const HeaderInfo &)> callback);
+
+    // Extract a single file to the given output device.
+    // Path matching: normalized (strip "./"), exact match on filePath/fileName.
+    // Returns false if file not found or on error.
+    bool extractSingleFile(const QString &targetPath, QIODevice *dest);
+
+    // Return archive metadata as QJsonObject.
+    // Requires full header scan for totalFiles/totalSize.
+    QJsonObject getArchiveInfo();
+
+    // Normalize a path from the archive: strip leading "./", collapse "//"
+    static QString normalizePath(const QString &filePath, const QString &fileName);
 
     void ensureConfigLoaded()
     {
@@ -193,14 +242,6 @@ private:
     static constexpr qint64 kHeaderSize = 4377;
     static constexpr qint64 kCrcChunkSize = 524288;
 
-    struct HeaderInfo {
-        QString fileName;
-        QString filePath;
-        QString crc32;
-        qint64 fileSize = 0;
-        bool isEof = false;
-    };
-
     void loadConfig();
 
     bool readHeader(HeaderInfo &outInfo)
@@ -225,6 +266,16 @@ private:
             return false;
         }
         outInfo.fileSize = fileSize;
+
+        // Parse mtime field (bytes 269-280, 12-byte Unix timestamp string)
+        const QString mtimeStr = parseNullTerminatedString(header, 269, 12);
+        if (!mtimeStr.isEmpty()) {
+            bool mtimeOk = false;
+            const qint64 mtimeVal = mtimeStr.trimmed().toLongLong(&mtimeOk);
+            if (mtimeOk && mtimeVal > 0) {
+                outInfo.mtime = QDateTime::fromMSecsSinceEpoch(mtimeVal * 1000, Qt::UTC).toString(Qt::ISODate);
+            }
+        }
 
         if (isV2) {
             outInfo.filePath = parseNullTerminatedString(header, 281, 4088);

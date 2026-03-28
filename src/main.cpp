@@ -2,10 +2,12 @@
 #include "appdelegate.h"
 #include "autoextractor.h"
 #include "backupfile.h"
+#include "clihandler.h"
 #include "dockprogress.h"
 #include "extractionworker.h"
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QDir>
 #include <QFileOpenEvent>
@@ -39,6 +41,36 @@ static void printProgress(float percent)
 
 int main(int argc, char *argv[])
 {
+    // ── Two-phase init ─────────────────────────────────────────────────────
+    // Detect subcommand from raw argv BEFORE creating any Qt application
+    // object. CLI subcommands use QCoreApplication (no display server needed).
+    // QCoreApplication is a singleton — the CLI path never creates QApplication.
+    // No event loop (exec()) in CLI path: queued connections will silently drop.
+    if (argc >= 2) {
+        const QString sub = QString::fromLocal8Bit(argv[1]);
+        if (sub == "list") {
+            QCoreApplication app(argc, argv);
+            return cmdList(argc, argv);
+        }
+        if (sub == "info") {
+            QCoreApplication app(argc, argv);
+            return cmdInfo(argc, argv);
+        }
+        if (sub == "extract") {
+            QCoreApplication app(argc, argv);
+            return cmdExtract(argc, argv);
+        }
+        if (sub == "cat") {
+            QCoreApplication app(argc, argv);
+            return cmdCat(argc, argv);
+        }
+        if (sub == "verify") {
+            QCoreApplication app(argc, argv);
+            return cmdVerify(argc, argv);
+        }
+    }
+
+    // ── GUI / auto-extract path (existing, unchanged) ──────────────────────
     QApplication a(argc, argv);
 
     // Register Traktor as the default handler for .wpress files

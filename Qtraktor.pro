@@ -76,6 +76,7 @@ SOURCES += \
         src/mainwindow.cpp \
         src/backupfile.cpp \
         src/cryptoutils.cpp \
+        src/clihandler.cpp \
         src/passworddialog.cpp \
         src/appdelegate.cpp \
         src/dropoverlay.cpp \
@@ -94,6 +95,7 @@ HEADERS += \
         src/mainwindow.h \
         src/backupfile.h \
         src/cryptoutils.h \
+        src/clihandler.h \
         src/passworddialog.h \
         src/appdelegate.h \
         src/dropoverlay.h \

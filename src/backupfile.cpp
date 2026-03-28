@@ -115,6 +115,160 @@ void BackupFile::loadConfig()
     }
 }
 
+QString BackupFile::normalizePath(const QString &filePath, const QString &fileName)
+{
+    QString path;
+    if (filePath.isEmpty() || filePath == ".") {
+        path = fileName;
+    } else {
+        path = filePath + "/" + fileName;
+    }
+    // Strip leading "./"
+    while (path.startsWith("./")) {
+        path = path.mid(2);
+    }
+    // Collapse double slashes
+    while (path.contains("//")) {
+        path.replace("//", "/");
+    }
+    return path;
+}
+
+bool BackupFile::iterateHeaders(std::function<bool(const HeaderInfo &)> callback)
+{
+    const qint64 savedPos = pos();
+
+    if (!seek(0)) {
+        return false;
+    }
+
+    ensureConfigLoaded();
+
+    // Skip to first file entry (re-seek after config load)
+    if (!seek(0)) {
+        seek(savedPos);
+        return false;
+    }
+
+    while (!atEnd()) {
+        HeaderInfo info;
+        if (!readHeader(info)) {
+            seek(savedPos);
+            return false;
+        }
+
+        if (info.isEof) {
+            seek(savedPos);
+            return true;
+        }
+
+        if (!callback(info)) {
+            seek(savedPos);
+            return true; // callback requested stop, not an error
+        }
+
+        // Skip past file content
+        if (!seek(pos() + info.fileSize)) {
+            seek(savedPos);
+            return false;
+        }
+    }
+
+    seek(savedPos);
+    return false; // unexpected end of file
+}
+
+bool BackupFile::extractSingleFile(const QString &targetPath, QIODevice *dest)
+{
+    ensureConfigLoaded();
+
+    if (!seek(0)) {
+        return false;
+    }
+
+    const QString normalizedTarget = targetPath.startsWith("./") ? targetPath.mid(2) : targetPath;
+
+    while (!atEnd()) {
+        HeaderInfo info;
+        if (!readHeader(info)) {
+            return false;
+        }
+
+        if (info.isEof) {
+            return false; // file not found
+        }
+
+        const QString entryPath = normalizePath(info.filePath, info.fileName);
+
+        if (entryPath == normalizedTarget) {
+            // Found the target file — stream it to dest
+            const bool isCompressed = !CryptoUtils::isConfigFile(info.fileName) && compressionType != COMPRESSION_NONE;
+
+            QString processError;
+            bool streamOk;
+
+            if (isEncrypted && !filePassword.isEmpty()) {
+                streamOk = CryptoUtils::processFileContentWithPasswordStreaming(this, info.fileSize, dest, isCompressed,
+                                                                                info.fileName, filePassword,
+                                                                                compressionType, &processError);
+            } else {
+                streamOk = CryptoUtils::processFileContentStreaming(this, info.fileSize, dest, isCompressed,
+                                                                    info.fileName, compressionType, &processError);
+            }
+
+            if (!streamOk) {
+                emit error(QString("Error processing file '%1': %2").arg(info.fileName, processError));
+            }
+            return streamOk;
+        }
+
+        // Skip past non-matching file content
+        if (!seek(pos() + info.fileSize)) {
+            return false;
+        }
+    }
+
+    return false; // file not found
+}
+
+QJsonObject BackupFile::getArchiveInfo()
+{
+    ensureConfigLoaded();
+
+    QJsonObject info;
+    info["version"] = isV2 ? 2 : 1;
+    info["encrypted"] = isEncrypted;
+
+    switch (compressionType) {
+    case COMPRESSION_ZLIB:
+        info["compression"] = QString("zlib");
+        break;
+    case COMPRESSION_BZIP2:
+        info["compression"] = QString("bzip2");
+        break;
+    default:
+        info["compression"] = QString("none");
+        break;
+    }
+
+    info["archiveSize"] = size();
+
+    // Full header scan for file count and total size
+    int totalFiles = 0;
+    qint64 totalSize = 0;
+
+    iterateHeaders([&](const HeaderInfo &entry) {
+        totalFiles++;
+        totalSize += entry.fileSize;
+        return true;
+    });
+
+    info["totalFiles"] = totalFiles;
+    info["totalSize"] = totalSize;
+
+    return info;
+}
+
 bool BackupFile::verifyArchiveCrc()
 {
     const qint64 dataSize = size() - kHeaderSize;

@@ -52,9 +52,11 @@ SOURCES += \
     tst_extractionworker.cpp \
     tst_qsettings.cpp \
     tst_fuzz.cpp \
+    tst_cli.cpp \
     ../src/backupfile.cpp \
     ../src/cryptoutils.cpp \
     ../src/extractionworker.cpp \
+    ../src/clihandler.cpp \
     $$BZIP2_DIR/blocksort.c \
     $$BZIP2_DIR/huffman.c \
     $$BZIP2_DIR/crctable.c \
@@ -66,4 +68,5 @@ SOURCES += \
 HEADERS += \
     ../src/backupfile.h \
     ../src/cryptoutils.h \
-    ../src/extractionworker.h
+    ../src/extractionworker.h \
+    ../src/clihandler.h

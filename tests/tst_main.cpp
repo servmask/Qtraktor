@@ -7,6 +7,7 @@ class TestCryptoUtilsStreaming;
 class TestExtractionWorker;
 class TestQSettings;
 class TestFuzz;
+class TestCli;
 
 // Test entry point: runs all test classes
 int main(int argc, char *argv[])
@@ -36,6 +37,10 @@ int main(int argc, char *argv[])
     {
         extern int runTestFuzz(int, char **);
         status |= runTestFuzz(argc, argv);
+    }
+    {
+        extern int runTestCli(int, char **);
+        status |= runTestCli(argc, argv);
     }
 
     return status;
