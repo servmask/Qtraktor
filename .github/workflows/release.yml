@@ -199,6 +199,9 @@ jobs:
           Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libcrypto*.dll" -Destination release\
           Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\zlib1.dll" -Destination release\
 
+          # Bundle file type icon for .wpress association
+          Copy-Item "icons\file.ico" -Destination release\
+
           # Prepare installer package data
           New-Item -ItemType Directory -Path packages\com.servmask.traktor\data -Force
           Get-ChildItem release | Copy-Item -Destination packages\com.servmask.traktor\data -Recurse
