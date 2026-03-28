@@ -141,13 +141,13 @@ static QJsonArray buildToolSchemas()
         props["archive"] = archiveProp;
         props["path"] = pathProp;
         props["password"] = passwordProp;
+        QJsonArray catRequired;
+        catRequired << "archive" << "path";
         tools.append(makeSchema("cat",
                                 "Read a single file from inside a .wpress archive without extracting the entire "
                                 "archive. Returns the file content as text. For files larger than 10 MB, consider "
                                 "using extract instead.",
-                                props,
-                                QJsonArray() << "archive"
-                                             << "path"));
+                                props, catRequired));
     }
     // verify
     {
