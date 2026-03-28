@@ -34,7 +34,7 @@ make -j$(nproc)
 release\tst_qtraktor.exe  # Windows
 ```
 
-42 tests across 5 test classes: BackupFile (13), CryptoUtils streaming (7), ExtractionWorker (9), QSettings (6), Fuzz (15). Tests use QTest framework. Test entry point is `tests/tst_main.cpp` which runs all classes sequentially.
+97 tests across 6 test classes: BackupFile (13), CryptoUtils streaming (7), ExtractionWorker (9), QSettings (6), Fuzz (15), CLI (39 — covers CrcDevice, path normalization, header iteration, single-file extraction, archive info, MCP protocol, and AgentConfigManager). Tests use QTest framework. Test entry point is `tests/tst_main.cpp` which runs all classes sequentially.
 
 On headless Linux (CI), set `QT_QPA_PLATFORM=offscreen` because tests use QApplication.
 
@@ -54,11 +54,29 @@ find src tests \( -name '*.cpp' -o -name '*.h' \) ! -name 'moc_*' | xargs clang-
 
 ```
 src/
-  main.cpp              Entry point. Parses args, launches GUI or auto-extract mode.
+  main.cpp              Entry point. Two-phase init: argv[1] check routes to CLI
+                        (QCoreApplication) or GUI (QApplication). --help intercepted
+                        before QApplication to show subcommand listing.
   mainwindow.h/cpp      Main GUI window. Open file, validate, extract, show progress.
+                        Tools menu: Install CLI, Manage AI Agent Integrations, Uninstall.
+                        First-run setup dialog on initial launch.
   backupfile.h/cpp      .wpress format parser. Reads headers, extracts files, verifies CRC.
                         Has path traversal protection in buildOutputPath().
+                        Public APIs: iterateHeaders(), extractSingleFile(), getArchiveInfo().
+                        CrcDevice: QIODevice sink for streaming CRC without disk writes.
   cryptoutils.h/cpp     Streaming decompression (zlib, bzip2) and AES-256-CBC decryption.
+  clihandler.h/cpp      CLI subcommand handlers: list, info, extract, cat, verify.
+                        JSON output via --json flag. NDJSON for list/verify.
+  mcpserver.h/cpp       MCP server (JSON-RPC 2.0 over stdio). 5 tools: list, info,
+                        extract, cat, verify. Sub-routing for mcp register/unregister/status.
+  agentconfig.h/cpp     AgentConfigManager: detects Claude Code + Gemini CLI, registers/
+                        unregisters MCP server in their config files. Atomic writes via
+                        QSaveFile. configRoot param for test isolation.
+  installcli.h/cpp      install-cli: creates /usr/local/bin/traktor symlink on macOS
+                        with osascript admin privileges. uninstall: removes symlink,
+                        MCP configs, and QSettings.
+  setupdialog.h/cpp     First-run Qt dialog. Detects agents, shows checkboxes, registers
+                        selected agents on "Set Up". Re-accessible via Tools menu.
   extractionworker.h/cpp  QThread worker for background extraction with progress signals.
   autoextractor.h/cpp   Auto-extract mode: file queue, single-instance IPC via QLocalServer,
                         progress window, system tray notifications.
@@ -75,8 +93,15 @@ tests/
   tst_qsettings.cpp         Settings persistence tests.
   tst_fuzz.cpp              Fuzz tests: truncated, corrupted, oversized, path traversal,
                             garbage input, malformed JSON, boundary sizes.
+  tst_cli.cpp               CLI, MCP, CrcDevice, AgentConfigManager tests.
   generate_fixtures.cpp     Standalone tool to generate test .wpress fixtures.
-  fixtures/                 Generated test archives (plain, empty, corrupted, multifile).
+  fixtures/                 Generated test archives (plain, empty, corrupted, multifile,
+                            v2crc, compressed).
+
+scripts/macos-pkg/
+  postinstall             PKG post-install: creates /usr/local/bin/traktor symlink.
+  distribution.xml        PKG installer UI: welcome, conclusion, title.
+  resources/              welcome.html, conclusion.html for installer screens.
 ```
 
 ## Key conventions
@@ -91,8 +116,8 @@ tests/
 
 ## CI
 
-- `ci.yml`: Runs on PRs and pushes to master. Builds and tests on Linux, macOS, Windows. Lints with clang-format v18. Validates conventional commit PR titles. Runs clazy (Qt linter, warn-only). Uploads build artifacts on PRs.
-- `release.yml`: Triggered by GitHub Release publish. Builds DMG (universal), Windows installer (Qt IFW), Linux AppImage. Uploads to release. Submits to VirusTotal.
+- `ci.yml`: Runs on PRs and pushes to master. Builds and tests on Linux, macOS, Windows. Lints with clang-format v18. Validates conventional commit PR titles. Runs clazy (Qt linter, warn-only). Uploads build artifacts (PKG + app tar for macOS) on PRs.
+- `release.yml`: Triggered by GitHub Release publish. Builds PKG (universal), Windows installer (Qt IFW), Linux AppImage. Uploads to release. Submits to VirusTotal. Auto-updates Homebrew Cask in servmask/homebrew-traktor.
 - `release-please.yml`: Auto-creates release PRs with changelog from conventional commits.
 - `label.yml`: Auto-labels PRs by file path.
 
@@ -103,6 +128,7 @@ tests/
 3. Merge the Release PR when ready to cut a release.
 4. release-please creates a GitHub Release, which triggers `release.yml`.
 5. Builds are uploaded to the release. VirusTotal scans are appended to release notes.
+6. Homebrew Cask (servmask/homebrew-traktor) is auto-updated with new version + SHA256.
 
 ## Security notes
 

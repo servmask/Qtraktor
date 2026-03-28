@@ -16,18 +16,78 @@ Cross-platform desktop application for extracting WordPress `.wpress` backup fil
 - **Auto-extract on open** ... double-click a `.wpress` file, extraction starts automatically
 - **Drag and drop** ... drop files onto the window or the app icon
 - **Cross-platform** ... native on macOS, Windows, and Linux
+- **CLI with JSON output** ... `list`, `info`, `extract`, `cat`, `verify` subcommands
+- **MCP server** ... AI agent integration via Model Context Protocol
 - **Multi-file queue** ... drop multiple archives, they extract in sequence
-- **Progress indicators** ... Dock badge (macOS), taskbar progress (Windows), progress window
 
-## Download
+## Install
 
-Get the latest release for your platform:
+### macOS
 
-| Platform | Download |
-|----------|----------|
-| macOS (Universal) | [Traktor.dmg](https://github.com/servmask/Qtraktor/releases/latest) |
-| Windows | [Traktor.exe](https://github.com/servmask/Qtraktor/releases/latest) |
-| Linux | [Traktor.AppImage](https://github.com/servmask/Qtraktor/releases/latest) |
+**Installer (recommended):**
+
+Download [Traktor.pkg](https://github.com/servmask/Qtraktor/releases/latest) — installs the app to `/Applications` and adds the `traktor` CLI to your terminal.
+
+**Homebrew:**
+
+```bash
+brew tap servmask/traktor
+brew install --cask traktor
+```
+
+**DMG (manual):**
+
+Download [Traktor.dmg](https://github.com/servmask/Qtraktor/releases/latest) and drag to Applications.
+
+### Windows
+
+Download [Traktor.exe](https://github.com/servmask/Qtraktor/releases/latest) installer.
+
+### Linux
+
+Download [Traktor.AppImage](https://github.com/servmask/Qtraktor/releases/latest) — make executable and run.
+
+## Command Line
+
+After installation, `traktor` is available in your terminal:
+
+```bash
+# List archive contents
+traktor list backup.wpress
+traktor list --json backup.wpress
+
+# Stream a single file without extracting
+traktor cat backup.wpress wp-config.php | grep DB_PASSWORD
+
+# Show archive metadata
+traktor info --json backup.wpress
+
+# Verify archive integrity
+traktor verify backup.wpress
+
+# Extract everything
+traktor extract backup.wpress ./output/
+```
+
+Run `traktor --help` for the full command reference.
+
+## AI Agent Integration
+
+Traktor includes an MCP server that lets AI coding agents (Claude Code, Gemini CLI, and others) inspect and extract `.wpress` files directly.
+
+**Register with your agents:**
+
+```bash
+traktor mcp register
+```
+
+**Check which agents are detected:**
+
+```bash
+traktor mcp status
+```
+
+After registration, your AI agent can use Traktor as a tool — ask it "what's in this .wpress backup?" and it just works.
 
 ## Building from Source
 
@@ -53,17 +113,9 @@ sudo apt install qt5-qmake qtbase5-dev libssl-dev zlib1g-dev pkg-config
 <details>
 <summary><strong>Windows (MSVC)</strong></summary>
 
-- Qt 5.x or 6.x with MSVC kit
+- Qt 5.x with MSVC kit
 - OpenSSL (install via `choco install openssl` or download from [slproweb.com](https://slproweb.com/products/Win32OpenSSL.html))
 - Set environment variable: `OPENSSL_DIR=C:\Program Files\OpenSSL-Win64`
-</details>
-
-<details>
-<summary><strong>Windows (MinGW)</strong></summary>
-
-- Qt 5.x or 6.x with MinGW kit
-- OpenSSL for MinGW
-- Set environment variable: `OPENSSL_DIR=C:\path\to\openssl`
 </details>
 
 ### Build
@@ -81,14 +133,6 @@ qmake.exe Qtraktor.pro
 nmake -f Makefile.Release
 ```
 
-### Run
-
-| Platform | Command |
-|----------|---------|
-| macOS | `open Traktor.app` |
-| Linux | `./Traktor` |
-| Windows | `release\Traktor.exe` |
-
 ### Run Tests
 
 ```bash
@@ -98,52 +142,9 @@ make -j$(nproc)
 ./tst_qtraktor
 ```
 
-## Project Structure
-
-```
-.
-├── Qtraktor.pro                  # qmake project file
-├── Info.plist                    # macOS app metadata and .wpress file association
-├── wpress.xml                    # MIME type definition for .wpress files
-│
-├── src/
-│   ├── main.cpp                  # Entry point
-│   ├── mainwindow.h/cpp/ui      # Main application window
-│   ├── backupfile.h/cpp         # .wpress format parser and extractor
-│   ├── cryptoutils.h/cpp        # Decompression (zlib, bzip2) and AES decryption
-│   ├── extractionworker.h/cpp   # Background extraction thread
-│   ├── autoextractor.h/cpp      # Auto-extract mode (double-click -> extract -> open)
-│   ├── progresswindow.h/cpp     # Minimal progress window for auto-extract
-│   ├── passworddialog.h/cpp     # Password prompt for encrypted archives
-│   ├── dropoverlay.h/cpp        # Drag-and-drop overlay
-│   ├── appdelegate.h/cpp        # macOS file-open event handling
-│   └── dockprogress.h/mm        # macOS Dock progress badge (+ stub for other platforms)
-│
-├── tests/
-│   ├── tests.pro                # Test project file
-│   ├── tst_main.cpp             # Test runner entry point
-│   ├── tst_backupfile.cpp       # Archive parsing and extraction tests
-│   ├── tst_cryptoutils_streaming.cpp
-│   ├── tst_extractionworker.cpp # Worker thread tests
-│   ├── tst_qsettings.cpp       # Settings persistence tests
-│   ├── tst_fuzz.cpp             # Fuzz tests (truncated, corrupted, path traversal)
-│   ├── generate_fixtures.cpp    # Test fixture generator
-│   └── fixtures/                # Generated .wpress test files
-│
-├── vendor/bzip2-1.0.8/          # Vendored bzip2 library
-├── icons/                       # App and file type icons (.ico, .icns, .svg, .png)
-├── config/                      # Qt Installer Framework config
-└── packages/                    # Qt Installer Framework package metadata
-```
-
 ## Contributing
 
-Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
-
-- Build and test instructions for all platforms
-- Code style guide (enforced by clang-format)
-- Conventional commit message format
-- PR checklist and guidelines
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for build instructions, code style guide, and PR guidelines.
 
 ## Security
 
