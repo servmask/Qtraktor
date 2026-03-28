@@ -15,5 +15,8 @@
         <pkg-ref id="com.servmask.traktor"/>
     </choice>
 
-    <pkg-ref id="com.servmask.traktor">traktor-component.pkg</pkg-ref>
+    <pkg-ref id="com.servmask.traktor"
+             version="0.0.0"
+             installKBytes="50000"
+             auth="root">#traktor-component.pkg</pkg-ref>
 </installer-gui-script>

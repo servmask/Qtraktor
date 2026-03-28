@@ -140,6 +140,11 @@ jobs:
       - name: Build PKG installer
         if: github.event_name == 'pull_request'
         run: |
+          # Verify app bundle exists and has content
+          echo "App bundle contents:"
+          ls -la Traktor.app/Contents/MacOS/
+          echo "App bundle size: $(du -sh Traktor.app | cut -f1)"
+
           # Build component package using --component (proper .app bundle handling)
           pkgbuild \
             --component Traktor.app \
@@ -149,12 +154,17 @@ jobs:
             --install-location /Applications \
             traktor-component.pkg
 
-          # Build product archive with custom distribution (welcome, conclusion, title)
+          # Verify component package payload
+          echo "Component package size: $(du -sh traktor-component.pkg | cut -f1)"
+
+          # Build product archive with custom welcome/conclusion text
           productbuild \
             --distribution scripts/macos-pkg/distribution.xml \
             --resources scripts/macos-pkg/resources \
             --package-path . \
             Traktor.pkg
+
+          echo "Final PKG size: $(du -sh Traktor.pkg | cut -f1)"
 
           # Also keep the app tar for direct testing
           tar -cf Traktor.app.tar Traktor.app
