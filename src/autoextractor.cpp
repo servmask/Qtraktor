@@ -14,15 +14,9 @@
 #include <QUrl>
 #include "passworddialog.h"
 
-
 AutoExtractor::AutoExtractor(const QStringList &files, QObject *parent)
-    : QObject(parent),
-      m_server(new QLocalServer(this)),
-      m_worker(nullptr),
-      m_progressDialog(nullptr),
-      m_trayIcon(nullptr),
-      m_pollTimer(new QTimer(this)),
-      m_shuttingDown(false)
+    : QObject(parent), m_server(new QLocalServer(this)), m_worker(nullptr), m_progressDialog(nullptr),
+      m_trayIcon(nullptr), m_pollTimer(new QTimer(this)), m_shuttingDown(false)
 {
     m_queue = files;
     m_pollTimer->setInterval(50); // poll 20 times/sec
@@ -92,8 +86,7 @@ void AutoExtractor::processQueue()
 
     QFileInfo fileInfo(m_currentFile);
     if (!fileInfo.isReadable()) {
-        QMessageBox::warning(nullptr, tr("Unable to open file"),
-                           tr("Unable to open file: %1").arg(m_currentFile));
+        QMessageBox::warning(nullptr, tr("Unable to open file"), tr("Unable to open file: %1").arg(m_currentFile));
         QTimer::singleShot(0, this, &AutoExtractor::processQueue);
         return;
     }
@@ -102,7 +95,7 @@ void AutoExtractor::processQueue()
 
     if (!config.isValid) {
         QMessageBox::warning(nullptr, tr("Corrupted backup file"),
-                           tr("The backup file is corrupted: %1").arg(m_currentFile));
+                             tr("The backup file is corrupted: %1").arg(m_currentFile));
         QTimer::singleShot(0, this, &AutoExtractor::processQueue);
         return;
     }
@@ -125,7 +118,7 @@ void AutoExtractor::processQueue()
 
     if (m_currentDestDir.isEmpty()) {
         QMessageBox::warning(nullptr, tr("Unable to create directory"),
-                           tr("Unable to create extraction directory for %1").arg(m_currentFile));
+                             tr("Unable to create extraction directory for %1").arg(m_currentFile));
         QTimer::singleShot(0, this, &AutoExtractor::processQueue);
         return;
     }
@@ -175,10 +168,8 @@ void AutoExtractor::createProgressDialog()
 #ifdef Q_OS_MAC
     // Qt 5 QProgressBar native rendering is broken on macOS 26+
     m_progressBar->setFixedHeight(8);
-    m_progressBar->setStyleSheet(
-        "QProgressBar { border: none; border-radius: 4px; background: palette(midlight); }"
-        "QProgressBar::chunk { border-radius: 4px; background: palette(highlight); }"
-    );
+    m_progressBar->setStyleSheet("QProgressBar { border: none; border-radius: 4px; background: palette(midlight); }"
+                                 "QProgressBar::chunk { border-radius: 4px; background: palette(highlight); }");
 #endif
 
     m_stopButton = new QPushButton(tr("Stop"));

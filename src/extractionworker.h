@@ -18,8 +18,8 @@ class ExtractionWorker : public QThread
     Q_OBJECT
 
 public:
-    ExtractionWorker(const QString &filePath, const QString &password,
-                     const QString &destDir, QObject *parent = nullptr);
+    ExtractionWorker(const QString &filePath, const QString &password, const QString &destDir,
+                     QObject *parent = nullptr);
 
     void abort();
     bool isAborted() const;

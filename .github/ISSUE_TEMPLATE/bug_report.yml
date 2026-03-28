@@ -1,0 +1,86 @@
+name: Bug Report
+description: Report a bug to help us improve Traktor
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this bug?
+      placeholder: |
+        1. Open the application
+        2. Open a .wpress file
+        3. Click Extract
+        4. Observe the error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: dropdown
+    id: archive_type
+    attributes:
+      label: Archive Type
+      description: What type of .wpress file were you using?
+      options:
+        - Plain (uncompressed, unencrypted)
+        - Compressed
+        - Encrypted
+        - Unknown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: archive_format
+    attributes:
+      label: Archive Format
+      description: If known, which format version?
+      options:
+        - v1
+        - v2
+        - Unknown
+
+  - type: input
+    id: traktor_version
+    attributes:
+      label: Traktor Version
+      placeholder: "e.g., 1.5"
+
+  - type: input
+    id: qt_version
+    attributes:
+      label: Qt Version
+      description: If known (most users won't know this)
+      placeholder: "e.g., 5.15.2"
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Screenshots, log output, or any other relevant information

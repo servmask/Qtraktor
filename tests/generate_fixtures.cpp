@@ -17,8 +17,8 @@ struct WpressHeader {
     // total: 255 + 14 + 12 + 4096 = 4377
 };
 
-static void writeHeader(std::ofstream &out, const std::string &name,
-                        const std::string &content, const std::string &path = ".")
+static void writeHeader(std::ofstream &out, const std::string &name, const std::string &content,
+                        const std::string &path = ".")
 {
     char header[HEADER_SIZE];
     std::memset(header, 0, HEADER_SIZE);
@@ -28,7 +28,8 @@ static void writeHeader(std::ofstream &out, const std::string &name,
 
     // File size (255-268), right-padded with spaces
     std::string sizeStr = std::to_string(content.size());
-    while (sizeStr.size() < 13) sizeStr += ' ';
+    while (sizeStr.size() < 13)
+        sizeStr += ' ';
     std::memcpy(header + 255, sizeStr.c_str(), 13);
 
     // mtime (269-280) - skip, leave as zeros

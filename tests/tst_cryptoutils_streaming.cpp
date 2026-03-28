@@ -19,8 +19,8 @@ private slots:
         dest.open(QIODevice::WriteOnly);
 
         QString error;
-        QVERIFY(CryptoUtils::processFileContentStreaming(
-            &source, input.size(), &dest, false, "test.txt", COMPRESSION_NONE, &error));
+        QVERIFY(CryptoUtils::processFileContentStreaming(&source, input.size(), &dest, false, "test.txt",
+                                                         COMPRESSION_NONE, &error));
         QVERIFY(error.isEmpty());
         QCOMPARE(output, input);
     }
@@ -37,8 +37,8 @@ private slots:
 
         QString error;
         // Even with compression flag true, config files should be passed through
-        QVERIFY(CryptoUtils::processFileContentStreaming(
-            &source, input.size(), &dest, true, "package.json", COMPRESSION_ZLIB, &error));
+        QVERIFY(CryptoUtils::processFileContentStreaming(&source, input.size(), &dest, true, "package.json",
+                                                         COMPRESSION_ZLIB, &error));
         QVERIFY(error.isEmpty());
         QCOMPARE(output, input);
     }
@@ -54,8 +54,8 @@ private slots:
         dest.open(QIODevice::WriteOnly);
 
         QString error;
-        QVERIFY(CryptoUtils::processFileContentStreaming(
-            &source, 0, &dest, false, "empty.txt", COMPRESSION_NONE, &error));
+        QVERIFY(
+            CryptoUtils::processFileContentStreaming(&source, 0, &dest, false, "empty.txt", COMPRESSION_NONE, &error));
         QVERIFY(error.isEmpty());
         QVERIFY(output.isEmpty());
     }
@@ -71,8 +71,8 @@ private slots:
         dest.open(QIODevice::WriteOnly);
 
         QString error;
-        QVERIFY(CryptoUtils::processFileContentWithPasswordStreaming(
-            &source, 0, &dest, false, "empty.txt", "password", COMPRESSION_NONE, &error));
+        QVERIFY(CryptoUtils::processFileContentWithPasswordStreaming(&source, 0, &dest, false, "empty.txt", "password",
+                                                                     COMPRESSION_NONE, &error));
         QVERIFY(error.isEmpty());
     }
 
@@ -88,8 +88,8 @@ private slots:
         dest.open(QIODevice::WriteOnly);
 
         QString error;
-        QVERIFY(CryptoUtils::processFileContentStreaming(
-            &source, input.size(), &dest, false, "large.sql", COMPRESSION_NONE, &error));
+        QVERIFY(CryptoUtils::processFileContentStreaming(&source, input.size(), &dest, false, "large.sql",
+                                                         COMPRESSION_NONE, &error));
         QVERIFY(error.isEmpty());
         QCOMPARE(output.size(), input.size());
         QCOMPARE(output, input);

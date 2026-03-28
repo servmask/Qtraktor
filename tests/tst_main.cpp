@@ -6,6 +6,7 @@ class TestBackupFile;
 class TestCryptoUtilsStreaming;
 class TestExtractionWorker;
 class TestQSettings;
+class TestFuzz;
 
 // Test entry point: runs all test classes
 int main(int argc, char *argv[])
@@ -17,20 +18,24 @@ int main(int argc, char *argv[])
     int status = 0;
 
     {
-        extern int runTestBackupFile(int, char**);
+        extern int runTestBackupFile(int, char **);
         status |= runTestBackupFile(argc, argv);
     }
     {
-        extern int runTestCryptoUtilsStreaming(int, char**);
+        extern int runTestCryptoUtilsStreaming(int, char **);
         status |= runTestCryptoUtilsStreaming(argc, argv);
     }
     {
-        extern int runTestExtractionWorker(int, char**);
+        extern int runTestExtractionWorker(int, char **);
         status |= runTestExtractionWorker(argc, argv);
     }
     {
-        extern int runTestQSettings(int, char**);
+        extern int runTestQSettings(int, char **);
         status |= runTestQSettings(argc, argv);
+    }
+    {
+        extern int runTestFuzz(int, char **);
+        status |= runTestFuzz(argc, argv);
     }
 
     return status;

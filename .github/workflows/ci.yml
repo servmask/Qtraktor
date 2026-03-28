@@ -1,0 +1,184 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+# Dependency installation mirrors release.yml with deliberate simplifications:
+# - Single macOS runner (not the two-runner universal binary matrix)
+# - Skip libfuse2 on Linux (only needed for AppImage packaging)
+# - CI-specific vcpkg cache key
+# If release.yml changes deps, update this file too.
+
+jobs:
+  lint:
+    name: Code Style
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cpp-linter/cpp-linter-action@v2
+        id: linter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          style: file
+          tidy-checks: '-*'
+          version: '18'
+          files-changed-only: true
+          ignore: 'vendor'
+          thread-comments: true
+
+      - name: Fail on format violations
+        if: steps.linter.outputs.clang-format-checks-failed > 0
+        run: exit 1
+
+  commit-lint:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            chore
+            docs
+            test
+            refactor
+            build
+            ci
+
+  build-test-linux:
+    name: Build & Test (Linux)
+    runs-on: ubuntu-22.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qtbase5-dev qt5-qmake libssl-dev zlib1g-dev pkg-config clazy
+
+      - name: Build
+        run: |
+          qmake Qtraktor.pro
+          make -j$(nproc)
+
+      - name: Build tests
+        run: |
+          cd tests
+          qmake tests.pro
+          make -j$(nproc)
+
+      - name: Run tests
+        run: |
+          cd tests
+          ./tst_qtraktor
+
+      - name: Run clazy (Qt-specific linting)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: |
+          make clean
+          qmake Qtraktor.pro "QMAKE_CXX=clazy" "QMAKE_CXXFLAGS+=-Xclang -plugin-arg-clazy -Xclang level0,level1"
+          make -j$(nproc) 2>&1 | tee clazy-output.txt
+          echo "## clazy warnings" >> $GITHUB_STEP_SUMMARY
+          grep -E "warning:.*\[-Wclazy" clazy-output.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No clazy warnings found" >> $GITHUB_STEP_SUMMARY
+
+  build-test-macos:
+    name: Build & Test (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install qt@5 openssl pkg-config
+
+      - name: Build
+        run: |
+          export PATH="$(brew --prefix qt@5)/bin:$PATH"
+          export PKG_CONFIG_PATH="$(brew --prefix openssl)/lib/pkgconfig"
+          qmake Qtraktor.pro
+          make -j$(sysctl -n hw.ncpu)
+
+      - name: Build tests
+        run: |
+          export PATH="$(brew --prefix qt@5)/bin:$PATH"
+          export PKG_CONFIG_PATH="$(brew --prefix openssl)/lib/pkgconfig"
+          cd tests
+          qmake tests.pro
+          make -j$(sysctl -n hw.ncpu)
+
+      - name: Run tests
+        run: |
+          cd tests
+          ./tst_qtraktor
+
+  build-test-windows:
+    name: Build & Test (Windows)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.15.2'
+          host: windows
+          target: desktop
+          arch: win64_msvc2019_64
+          cache: true
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg\installed
+          # Shared key with release.yml so both workflows benefit from the same cache
+          key: vcpkg-windows-openssl-zlib
+          restore-keys: |
+            vcpkg-windows-
+
+      - name: Install OpenSSL and zlib
+        run: vcpkg install openssl:x64-windows zlib:x64-windows
+
+      - name: Set vcpkg paths
+        shell: pwsh
+        run: |
+          "OPENSSL_DIR=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "LIB=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "INCLUDE=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include;$env:INCLUDE" | Out-File -FilePath $env:GITHUB_ENV -Append
+          # Add vcpkg bin to PATH for DLL resolution at runtime
+          "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Build
+        shell: cmd
+        run: |
+          qmake Qtraktor.pro
+          nmake -f Makefile.Release
+
+      - name: Build tests
+        shell: cmd
+        run: |
+          cd tests
+          qmake tests.pro
+          nmake -f Makefile.Release
+
+      - name: Run tests
+        shell: cmd
+        run: |
+          cd tests
+          release\tst_qtraktor.exe

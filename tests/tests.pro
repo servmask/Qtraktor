@@ -10,7 +10,7 @@ CONFIG -= app_bundle
 TARGET = tst_qtraktor
 TEMPLATE = app
 
-INCLUDEPATH += ..
+INCLUDEPATH += ../src
 INCLUDEPATH += ../vendor/bzip2-1.0.8
 
 # Link same libraries as the main project
@@ -51,9 +51,10 @@ SOURCES += \
     tst_cryptoutils_streaming.cpp \
     tst_extractionworker.cpp \
     tst_qsettings.cpp \
-    ../backupfile.cpp \
-    ../cryptoutils.cpp \
-    ../extractionworker.cpp \
+    tst_fuzz.cpp \
+    ../src/backupfile.cpp \
+    ../src/cryptoutils.cpp \
+    ../src/extractionworker.cpp \
     $$BZIP2_DIR/blocksort.c \
     $$BZIP2_DIR/huffman.c \
     $$BZIP2_DIR/crctable.c \
@@ -63,6 +64,6 @@ SOURCES += \
     $$BZIP2_DIR/bzlib.c
 
 HEADERS += \
-    ../backupfile.h \
-    ../cryptoutils.h \
-    ../extractionworker.h
+    ../src/backupfile.h \
+    ../src/cryptoutils.h \
+    ../src/extractionworker.h

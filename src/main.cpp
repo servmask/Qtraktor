@@ -13,7 +13,6 @@
 #include <QTimer>
 #include <cstdio>
 
-
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
@@ -50,16 +49,14 @@ int main(int argc, char *argv[])
     parser.addHelpOption();
     parser.addVersionOption();
 
-    QCommandLineOption sourceOption(QStringList() << "s" << "source",
-        "Backup file to open (.wpress)", "source");
+    QCommandLineOption sourceOption(QStringList() << "s" << "source", "Backup file to open (.wpress)", "source");
     parser.addOption(sourceOption);
 
-    QCommandLineOption destinationOption(QStringList() << "d" << "destination",
-        "Directory to extract the backup into", "destination");
+    QCommandLineOption destinationOption(QStringList() << "d" << "destination", "Directory to extract the backup into",
+                                         "destination");
     parser.addOption(destinationOption);
 
-    QCommandLineOption passwordOption(QStringList() << "p" << "password",
-        "Password for encrypted backup", "password");
+    QCommandLineOption passwordOption(QStringList() << "p" << "password", "Password for encrypted backup", "password");
     parser.addOption(passwordOption);
 
     parser.addPositionalArgument("file", "Backup file to open (.wpress)", "[file]");
@@ -72,7 +69,7 @@ int main(int argc, char *argv[])
         source = positional.first();
 
     const QString destination = parser.value(destinationOption);
-    const QString password    = parser.value(passwordOption);
+    const QString password = parser.value(passwordOption);
 
     // ── CLI mode ────────────────────────────────────────────────────────────
     if (!source.isEmpty() && !destination.isEmpty()) {
@@ -80,15 +77,13 @@ int main(int argc, char *argv[])
 
         QFileInfo fileInfo(source);
         if (!fileInfo.isReadable()) {
-            fprintf(stderr, "Error: cannot read file: %s\n",
-                    source.toLocal8Bit().constData());
+            fprintf(stderr, "Error: cannot read file: %s\n", source.toLocal8Bit().constData());
             return 1;
         }
 
         QDir extractTo(destination + "/" + fileInfo.baseName());
         if (!QDir().mkdir(extractTo.path())) {
-            fprintf(stderr, "Error: cannot create directory: %s\n",
-                    extractTo.path().toLocal8Bit().constData());
+            fprintf(stderr, "Error: cannot create directory: %s\n", extractTo.path().toLocal8Bit().constData());
             return 1;
         }
 
@@ -99,8 +94,8 @@ int main(int argc, char *argv[])
 
         if (configChecker.open(QIODevice::ReadOnly)) {
             if (configChecker.isValid()) {
-                needsPassword    = configChecker.isEncryptedFile();
-                compressionType  = configChecker.getCompressionType();
+                needsPassword = configChecker.isEncryptedFile();
+                compressionType = configChecker.getCompressionType();
             }
             configChecker.close();
         }
@@ -114,8 +109,7 @@ int main(int argc, char *argv[])
 
         BackupFile backupFile(source, filePassword);
         if (!backupFile.open(QIODevice::ReadOnly)) {
-            fprintf(stderr, "Error: cannot open file: %s\n",
-                    source.toLocal8Bit().constData());
+            fprintf(stderr, "Error: cannot open file: %s\n", source.toLocal8Bit().constData());
             extractTo.removeRecursively();
             return 1;
         }
@@ -129,7 +123,7 @@ int main(int argc, char *argv[])
         }
 
         fprintf(stdout, "File : %s\n", fileInfo.fileName().toLocal8Bit().constData());
-        fprintf(stdout, "To   : %s\n",  extractTo.path().toLocal8Bit().constData());
+        fprintf(stdout, "To   : %s\n", extractTo.path().toLocal8Bit().constData());
         fflush(stdout);
 
         QObject::connect(&backupFile, &BackupFile::progress, printProgress);
@@ -151,8 +145,7 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        fprintf(stdout, "Done. Extracted to: %s\n",
-                extractTo.path().toLocal8Bit().constData());
+        fprintf(stdout, "Done. Extracted to: %s\n", extractTo.path().toLocal8Bit().constData());
         fflush(stdout);
         return 0;
     }
@@ -206,13 +199,14 @@ int main(int argc, char *argv[])
     AutoExtractor *extractor = nullptr;
 
     // Temporary event filter that collects FileOpen events during startup
-    class StartupFilter : public QObject {
+    class StartupFilter : public QObject
+    {
     public:
         QStringList *files;
         bool *decided;
-        explicit StartupFilter(QStringList *f, bool *d, QObject *p = nullptr)
-            : QObject(p), files(f), decided(d) {}
-        bool eventFilter(QObject *, QEvent *event) override {
+        explicit StartupFilter(QStringList *f, bool *d, QObject *p = nullptr) : QObject(p), files(f), decided(d) {}
+        bool eventFilter(QObject *, QEvent *event) override
+        {
             if (event->type() == QEvent::FileOpen) {
                 QFileOpenEvent *e = static_cast<QFileOpenEvent *>(event);
 
@@ -225,13 +219,11 @@ int main(int argc, char *argv[])
         }
     };
 
-
     StartupFilter startupFilter(&pendingFiles, &decided);
     a.installEventFilter(&startupFilter);
 
     // Give macOS 300ms to deliver FileOpen events
     QTimer::singleShot(300, [&]() {
-
         decided = true;
         a.removeEventFilter(&startupFilter);
 

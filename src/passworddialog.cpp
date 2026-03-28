@@ -1,8 +1,7 @@
 #include "passworddialog.h"
 #include <QMessageBox>
 
-PasswordDialog::PasswordDialog(QWidget *parent)
-    : QDialog(parent)
+PasswordDialog::PasswordDialog(QWidget *parent) : QDialog(parent)
 {
     setWindowTitle(tr("Enter Password"));
     setModal(true);

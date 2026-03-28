@@ -6,18 +6,19 @@
 #include "extractionworker.h"
 #include "passworddialog.h"
 
-namespace Ui {
-  class MainWindow;
+namespace Ui
+{
+class MainWindow;
 }
 
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
-  public:
+public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
-  public slots:
+public slots:
     void openBackup();
     void openBackupFile(const QString &filename);
     void setPassword(const QString &password);
@@ -26,11 +27,11 @@ class MainWindow : public QMainWindow
     void extractToPath(const QString &destDir);
     void extractProgress(float percent);
 
-  private slots:
+private slots:
     void onExtractionFinished(bool success);
     void onExtractionError(const QString &error);
 
-  private:
+private:
     Ui::MainWindow *ui;
     QString backupFilename;
     QString filePassword;

@@ -25,6 +25,9 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 CONFIG += c++11 sdk_no_version_check
 
+# Include src/ so generated ui_*.h files can find project headers
+INCLUDEPATH += src
+
 # zlib library (for decompression)
 # bzip2 is bundled in vendor/bzip2-1.0.8 and built as part of the project
 
@@ -69,16 +72,16 @@ BZIP2_DIR = $$PWD/vendor/bzip2-1.0.8
 INCLUDEPATH += $$BZIP2_DIR
 
 SOURCES += \
-        main.cpp \
-        mainwindow.cpp \
-        backupfile.cpp \
-        cryptoutils.cpp \
-        passworddialog.cpp \
-        appdelegate.cpp \
-        dropoverlay.cpp \
-        extractionworker.cpp \
-        autoextractor.cpp \
-        progresswindow.cpp \
+        src/main.cpp \
+        src/mainwindow.cpp \
+        src/backupfile.cpp \
+        src/cryptoutils.cpp \
+        src/passworddialog.cpp \
+        src/appdelegate.cpp \
+        src/dropoverlay.cpp \
+        src/extractionworker.cpp \
+        src/autoextractor.cpp \
+        src/progresswindow.cpp \
         $$BZIP2_DIR/blocksort.c \
         $$BZIP2_DIR/huffman.c \
         $$BZIP2_DIR/crctable.c \
@@ -88,31 +91,31 @@ SOURCES += \
         $$BZIP2_DIR/bzlib.c
 
 HEADERS += \
-        mainwindow.h \
-        backupfile.h \
-        cryptoutils.h \
-        passworddialog.h \
-        appdelegate.h \
-        dropoverlay.h \
-        extractionworker.h \
-        autoextractor.h \
-        progresswindow.h \
-        dockprogress.h
+        src/mainwindow.h \
+        src/backupfile.h \
+        src/cryptoutils.h \
+        src/passworddialog.h \
+        src/appdelegate.h \
+        src/dropoverlay.h \
+        src/extractionworker.h \
+        src/autoextractor.h \
+        src/progresswindow.h \
+        src/dockprogress.h
 
 FORMS += \
-        mainwindow.ui
+        src/mainwindow.ui
 
 RC_ICONS = icons/traktor.ico
 ICON = icons/traktor.icns
 macx {
-    OBJECTIVE_SOURCES += dockprogress.mm
+    OBJECTIVE_SOURCES += src/dockprogress.mm
     QMAKE_INFO_PLIST = Info.plist
     FILE_ICON.files = icons/file.icns
     FILE_ICON.path = Contents/Resources
     QMAKE_BUNDLE_DATA += FILE_ICON
 }
 !macx {
-    SOURCES += dockprogress_stub.cpp
+    SOURCES += src/dockprogress_stub.cpp
 }
 
 # Default rules for deployment.

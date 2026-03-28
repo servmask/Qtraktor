@@ -11,20 +11,17 @@
 #include <openssl/sha.h>
 
 #ifndef AES_BLOCK_SIZE
-    #define AES_BLOCK_SIZE 16
+#define AES_BLOCK_SIZE 16
 #endif
 
-const QStringList CryptoUtils::CONFIG_FILES = {
-    "package.json",
-    "multisite.json"
-};
+const QStringList CryptoUtils::CONFIG_FILES = {"package.json", "multisite.json"};
 
 const int CryptoUtils::CHUNK_SIZE_PREFIX_LENGTH = 4;
-const int CryptoUtils::ENCRYPTION_CHUNK_SIZE = 512032; // 512000 plaintext + 16 IV + 16 AES padding
+const int CryptoUtils::ENCRYPTION_CHUNK_SIZE = 512032;  // 512000 plaintext + 16 IV + 16 AES padding
 const int CryptoUtils::STREAM_COPY_CHUNK_SIZE = 524288; // 512KB
 static constexpr int OUTPUT_BUFFER_SIZE = 32768;
 
-static quint32 readBigEndianUInt32(const QByteArray& data, int offset)
+static quint32 readBigEndianUInt32(const QByteArray &data, int offset)
 {
     quint32 value = 0;
     for (int i = 0; i < 4; ++i) {
@@ -33,24 +30,26 @@ static quint32 readBigEndianUInt32(const QByteArray& data, int offset)
     return value;
 }
 
-bool CryptoUtils::isConfigFile(const QString& fileName)
+bool CryptoUtils::isConfigFile(const QString &fileName)
 {
     return CONFIG_FILES.contains(fileName.section('/', -1));
 }
 
-static QByteArray inflateWithMode(const QByteArray& compressedData, int windowBits, QString* errorMsg)
+static QByteArray inflateWithMode(const QByteArray &compressedData, int windowBits, QString *errorMsg)
 {
-    if (errorMsg) errorMsg->clear();
+    if (errorMsg)
+        errorMsg->clear();
 
     z_stream zs;
     std::memset(&zs, 0, sizeof(zs));
 
-    zs.next_in  = reinterpret_cast<Bytef*>(const_cast<char*>(compressedData.data()));
+    zs.next_in = reinterpret_cast<Bytef *>(const_cast<char *>(compressedData.data()));
     zs.avail_in = static_cast<uInt>(compressedData.size());
 
     const int initRet = inflateInit2(&zs, windowBits);
     if (initRet != Z_OK) {
-        if (errorMsg) *errorMsg = QString("zlib inflateInit2 failed: %1").arg(initRet);
+        if (errorMsg)
+            *errorMsg = QString("zlib inflateInit2 failed: %1").arg(initRet);
         return {};
     }
 
@@ -59,7 +58,7 @@ static QByteArray inflateWithMode(const QByteArray& compressedData, int windowBi
 
     int ret = Z_OK;
     while (ret == Z_OK) {
-        zs.next_out  = reinterpret_cast<Bytef*>(buffer);
+        zs.next_out = reinterpret_cast<Bytef *>(buffer);
         zs.avail_out = sizeof(buffer);
 
         ret = inflate(&zs, Z_NO_FLUSH);
@@ -79,9 +78,7 @@ static QByteArray inflateWithMode(const QByteArray& compressedData, int windowBi
 
     if (ret != Z_STREAM_END) {
         if (errorMsg) {
-            *errorMsg = QString("zlib inflate failed: %1 (%2)")
-                            .arg(ret)
-                            .arg(zs.msg ? zs.msg : "no message");
+            *errorMsg = QString("zlib inflate failed: %1 (%2)").arg(ret).arg(zs.msg ? zs.msg : "no message");
         }
         return {};
     }
@@ -89,12 +86,14 @@ static QByteArray inflateWithMode(const QByteArray& compressedData, int windowBi
     return output;
 }
 
-QByteArray CryptoUtils::decompressZlibChunk(const QByteArray& compressedData, QString* errorMsg)
+QByteArray CryptoUtils::decompressZlibChunk(const QByteArray &compressedData, QString *errorMsg)
 {
-    if (errorMsg) errorMsg->clear();
+    if (errorMsg)
+        errorMsg->clear();
 
     if (compressedData.isEmpty()) {
-        if (errorMsg) *errorMsg = "zlib: empty input";
+        if (errorMsg)
+            *errorMsg = "zlib: empty input";
         return {};
     }
 
@@ -103,13 +102,13 @@ QByteArray CryptoUtils::decompressZlibChunk(const QByteArray& compressedData, QS
         return out;
     }
 
-    if (compressedData.size() >= 2 &&
-        static_cast<unsigned char>(compressedData[0]) == 0x1f &&
+    if (compressedData.size() >= 2 && static_cast<unsigned char>(compressedData[0]) == 0x1f &&
         static_cast<unsigned char>(compressedData[1]) == 0x8b) {
         QString gzipErr;
         QByteArray outGzip = inflateWithMode(compressedData, 31, &gzipErr);
         if (gzipErr.isEmpty()) {
-            if (errorMsg) errorMsg->clear();
+            if (errorMsg)
+                errorMsg->clear();
             return outGzip;
         }
     }
@@ -120,24 +119,27 @@ QByteArray CryptoUtils::decompressZlibChunk(const QByteArray& compressedData, QS
     return {};
 }
 
-QByteArray CryptoUtils::decompressBzip2Chunk(const QByteArray& compressedData, QString* errorMsg)
+QByteArray CryptoUtils::decompressBzip2Chunk(const QByteArray &compressedData, QString *errorMsg)
 {
-    if (errorMsg) errorMsg->clear();
+    if (errorMsg)
+        errorMsg->clear();
 
     if (compressedData.isEmpty()) {
-        if (errorMsg) *errorMsg = "bzip2: empty input";
+        if (errorMsg)
+            *errorMsg = "bzip2: empty input";
         return {};
     }
 
     bz_stream stream;
     std::memset(&stream, 0, sizeof(stream));
 
-    stream.next_in  = const_cast<char*>(compressedData.data());
+    stream.next_in = const_cast<char *>(compressedData.data());
     stream.avail_in = static_cast<unsigned int>(compressedData.size());
 
     const int initRet = BZ2_bzDecompressInit(&stream, 0, 0);
     if (initRet != BZ_OK) {
-        if (errorMsg) *errorMsg = QString("bzip2 init failed: %1").arg(initRet);
+        if (errorMsg)
+            *errorMsg = QString("bzip2 init failed: %1").arg(initRet);
         return {};
     }
 
@@ -146,7 +148,7 @@ QByteArray CryptoUtils::decompressBzip2Chunk(const QByteArray& compressedData, Q
 
     int ret = BZ_OK;
     while (ret == BZ_OK) {
-        stream.next_out  = buffer;
+        stream.next_out = buffer;
         stream.avail_out = sizeof(buffer);
 
         ret = BZ2_bzDecompress(&stream);
@@ -160,34 +162,33 @@ QByteArray CryptoUtils::decompressBzip2Chunk(const QByteArray& compressedData, Q
     BZ2_bzDecompressEnd(&stream);
 
     if (ret != BZ_STREAM_END) {
-        if (errorMsg) *errorMsg = QString("bzip2 decompression failed: %1").arg(ret);
+        if (errorMsg)
+            *errorMsg = QString("bzip2 decompression failed: %1").arg(ret);
         return {};
     }
 
     return output;
 }
 
-QByteArray CryptoUtils::decompressChunk(const QByteArray& compressedData, CompressionType type, QString* errorMsg)
+QByteArray CryptoUtils::decompressChunk(const QByteArray &compressedData, CompressionType type, QString *errorMsg)
 {
     switch (type) {
-        case COMPRESSION_ZLIB:
-            return decompressZlibChunk(compressedData, errorMsg);
-        case COMPRESSION_BZIP2:
-            return decompressBzip2Chunk(compressedData, errorMsg);
-        default:
-            if (errorMsg) *errorMsg = "Unknown compression type";
-            return {};
+    case COMPRESSION_ZLIB:
+        return decompressZlibChunk(compressedData, errorMsg);
+    case COMPRESSION_BZIP2:
+        return decompressBzip2Chunk(compressedData, errorMsg);
+    default:
+        if (errorMsg)
+            *errorMsg = "Unknown compression type";
+        return {};
     }
 }
 
-QByteArray CryptoUtils::processFileContent(
-    const QByteArray& fileContent,
-    bool isCompressed,
-    const QString& fileName,
-    CompressionType compressionType,
-    QString* errorMsg
-) {
-    if (errorMsg) errorMsg->clear();
+QByteArray CryptoUtils::processFileContent(const QByteArray &fileContent, bool isCompressed, const QString &fileName,
+                                           CompressionType compressionType, QString *errorMsg)
+{
+    if (errorMsg)
+        errorMsg->clear();
 
     if (isConfigFile(fileName) || !isCompressed) {
         return fileContent;
@@ -202,7 +203,8 @@ QByteArray CryptoUtils::processFileContent(
 
     while (pos < fileContent.size()) {
         if (pos + CHUNK_SIZE_PREFIX_LENGTH > fileContent.size()) {
-            if (errorMsg) *errorMsg = "Incomplete chunk header";
+            if (errorMsg)
+                *errorMsg = "Incomplete chunk header";
             return {};
         }
 
@@ -210,7 +212,8 @@ QByteArray CryptoUtils::processFileContent(
         pos += CHUNK_SIZE_PREFIX_LENGTH;
 
         if (chunkSize == 0 || pos + static_cast<int>(chunkSize) > fileContent.size()) {
-            if (errorMsg) *errorMsg = "Invalid chunk size";
+            if (errorMsg)
+                *errorMsg = "Invalid chunk size";
             return {};
         }
 
@@ -221,7 +224,8 @@ QByteArray CryptoUtils::processFileContent(
         QByteArray decompressed = decompressChunk(compressedChunk, compressionType, &decompErr);
 
         if (!decompErr.isEmpty()) {
-            if (errorMsg) *errorMsg = decompErr;
+            if (errorMsg)
+                *errorMsg = decompErr;
             return {};
         }
 
@@ -236,26 +240,29 @@ int CryptoUtils::cryptIvLength()
     return 16; // AES block size
 }
 
-QByteArray CryptoUtils::decryptString(const QByteArray& encryptedData, const QString& password, QString* errorMsg)
+QByteArray CryptoUtils::decryptString(const QByteArray &encryptedData, const QString &password, QString *errorMsg)
 {
     if (errorMsg) {
         errorMsg->clear();
     }
 
     if (encryptedData.isEmpty()) {
-        if (errorMsg) *errorMsg = "Empty encrypted data";
+        if (errorMsg)
+            *errorMsg = "Empty encrypted data";
         return {};
     }
 
     if (password.isEmpty()) {
-        if (errorMsg) *errorMsg = "Empty password";
+        if (errorMsg)
+            *errorMsg = "Empty password";
         return {};
     }
 
     const int ivLength = cryptIvLength(); // 16 bytes
 
     if (encryptedData.size() < ivLength) {
-        if (errorMsg) *errorMsg = "Encrypted data too short (missing IV)";
+        if (errorMsg)
+            *errorMsg = "Encrypted data too short (missing IV)";
         return {};
     }
 
@@ -268,17 +275,18 @@ QByteArray CryptoUtils::decryptString(const QByteArray& encryptedData, const QSt
     QByteArray key32 = key16;
     key32.append(QByteArray(16, '\0'));
 
-    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
-        if (errorMsg) *errorMsg = "Failed to create cipher context";
+        if (errorMsg)
+            *errorMsg = "Failed to create cipher context";
         return {};
     }
 
-    if (EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr,
-                           reinterpret_cast<const unsigned char*>(key32.data()),
-                           reinterpret_cast<const unsigned char*>(iv.data())) != 1) {
+    if (EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, reinterpret_cast<const unsigned char *>(key32.data()),
+                           reinterpret_cast<const unsigned char *>(iv.data())) != 1) {
         EVP_CIPHER_CTX_free(ctx);
-        if (errorMsg) *errorMsg = "Failed to initialize decryption";
+        if (errorMsg)
+            *errorMsg = "Failed to initialize decryption";
         return {};
     }
 
@@ -288,16 +296,18 @@ QByteArray CryptoUtils::decryptString(const QByteArray& encryptedData, const QSt
     int outlen = 0;
     int finalLen = 0;
 
-    if (EVP_DecryptUpdate(ctx, reinterpret_cast<unsigned char*>(plaintext.data()), &outlen,
-                          reinterpret_cast<const unsigned char*>(ciphertext.data()), ciphertext.size()) != 1) {
+    if (EVP_DecryptUpdate(ctx, reinterpret_cast<unsigned char *>(plaintext.data()), &outlen,
+                          reinterpret_cast<const unsigned char *>(ciphertext.data()), ciphertext.size()) != 1) {
         EVP_CIPHER_CTX_free(ctx);
-        if (errorMsg) *errorMsg = "Decryption update failed";
+        if (errorMsg)
+            *errorMsg = "Decryption update failed";
         return {};
     }
 
-    if (EVP_DecryptFinal_ex(ctx, reinterpret_cast<unsigned char*>(plaintext.data()) + outlen, &finalLen) != 1) {
+    if (EVP_DecryptFinal_ex(ctx, reinterpret_cast<unsigned char *>(plaintext.data()) + outlen, &finalLen) != 1) {
         EVP_CIPHER_CTX_free(ctx);
-        if (errorMsg) *errorMsg = "Decryption finalization failed (wrong password?)";
+        if (errorMsg)
+            *errorMsg = "Decryption finalization failed (wrong password?)";
         return {};
     }
 
@@ -306,15 +316,12 @@ QByteArray CryptoUtils::decryptString(const QByteArray& encryptedData, const QSt
     return plaintext;
 }
 
-QByteArray CryptoUtils::processFileContentWithPassword(
-    const QByteArray& fileContent,
-    bool isCompressed,
-    const QString& fileName,
-    const QString& password,
-    CompressionType compressionType,
-    QString* errorMsg
-) {
-    if (errorMsg) errorMsg->clear();
+QByteArray CryptoUtils::processFileContentWithPassword(const QByteArray &fileContent, bool isCompressed,
+                                                       const QString &fileName, const QString &password,
+                                                       CompressionType compressionType, QString *errorMsg)
+{
+    if (errorMsg)
+        errorMsg->clear();
 
     if (isConfigFile(fileName)) {
         return fileContent;
@@ -336,7 +343,8 @@ QByteArray CryptoUtils::processFileContentWithPassword(
                 QString decryptErr;
                 QByteArray decrypted = decryptString(chunk, password, &decryptErr);
                 if (!decryptErr.isEmpty()) {
-                    if (errorMsg) *errorMsg = decryptErr;
+                    if (errorMsg)
+                        *errorMsg = decryptErr;
                     return {};
                 }
                 result.append(decrypted);
@@ -356,7 +364,8 @@ QByteArray CryptoUtils::processFileContentWithPassword(
 
     while (pos < fileContent.size()) {
         if (pos + CHUNK_SIZE_PREFIX_LENGTH > fileContent.size()) {
-            if (errorMsg) *errorMsg = "Incomplete chunk header";
+            if (errorMsg)
+                *errorMsg = "Incomplete chunk header";
             return {};
         }
 
@@ -364,7 +373,8 @@ QByteArray CryptoUtils::processFileContentWithPassword(
         pos += CHUNK_SIZE_PREFIX_LENGTH;
 
         if (chunkSize == 0 || pos + static_cast<int>(chunkSize) > fileContent.size()) {
-            if (errorMsg) *errorMsg = "Invalid chunk size";
+            if (errorMsg)
+                *errorMsg = "Invalid chunk size";
             return {};
         }
 
@@ -388,7 +398,8 @@ QByteArray CryptoUtils::processFileContentWithPassword(
         QByteArray decompressed = decompressChunk(decryptedChunk, compressionType, &decompErr);
 
         if (!decompErr.isEmpty()) {
-            if (errorMsg) *errorMsg = decompErr;
+            if (errorMsg)
+                *errorMsg = decompErr;
             return {};
         }
 
@@ -425,11 +436,13 @@ bool CryptoUtils::copyPlain(QIODevice *source, qint64 contentSize, QIODevice *de
         const qint64 toRead = qMin(remaining, static_cast<qint64>(STREAM_COPY_CHUNK_SIZE));
         const QByteArray chunk = source->read(toRead);
         if (chunk.isEmpty()) {
-            if (errorMsg) *errorMsg = "Failed to read from source";
+            if (errorMsg)
+                *errorMsg = "Failed to read from source";
             return false;
         }
         if (dest->write(chunk) != chunk.size()) {
-            if (errorMsg) *errorMsg = "Failed to write to destination";
+            if (errorMsg)
+                *errorMsg = "Failed to write to destination";
             return false;
         }
         remaining -= chunk.size();
@@ -438,34 +451,39 @@ bool CryptoUtils::copyPlain(QIODevice *source, qint64 contentSize, QIODevice *de
     return true;
 }
 
-bool CryptoUtils::streamCompressed(QIODevice *source, qint64 contentSize, QIODevice *dest,
-                                     CompressionType type, QString *errorMsg)
+bool CryptoUtils::streamCompressed(QIODevice *source, qint64 contentSize, QIODevice *dest, CompressionType type,
+                                   QString *errorMsg)
 {
-    if (errorMsg) errorMsg->clear();
+    if (errorMsg)
+        errorMsg->clear();
     qint64 bytesConsumed = 0;
 
     while (bytesConsumed < contentSize) {
         if (bytesConsumed + CHUNK_SIZE_PREFIX_LENGTH > contentSize) {
-            if (errorMsg) *errorMsg = "Incomplete chunk header";
+            if (errorMsg)
+                *errorMsg = "Incomplete chunk header";
             return false;
         }
 
         QByteArray sizeBytes;
         if (!readExactFromDevice(source, CHUNK_SIZE_PREFIX_LENGTH, sizeBytes)) {
-            if (errorMsg) *errorMsg = "Failed to read chunk size prefix";
+            if (errorMsg)
+                *errorMsg = "Failed to read chunk size prefix";
             return false;
         }
         bytesConsumed += CHUNK_SIZE_PREFIX_LENGTH;
 
         const quint32 chunkSize = readBigEndianUInt32(sizeBytes, 0);
         if (chunkSize == 0 || bytesConsumed + chunkSize > contentSize) {
-            if (errorMsg) *errorMsg = "Invalid chunk size";
+            if (errorMsg)
+                *errorMsg = "Invalid chunk size";
             return false;
         }
 
         QByteArray compressedChunk;
         if (!readExactFromDevice(source, chunkSize, compressedChunk)) {
-            if (errorMsg) *errorMsg = "Failed to read compressed chunk";
+            if (errorMsg)
+                *errorMsg = "Failed to read compressed chunk";
             return false;
         }
         bytesConsumed += chunkSize;
@@ -473,12 +491,14 @@ bool CryptoUtils::streamCompressed(QIODevice *source, qint64 contentSize, QIODev
         QString decompErr;
         const QByteArray decompressed = decompressChunk(compressedChunk, type, &decompErr);
         if (!decompErr.isEmpty()) {
-            if (errorMsg) *errorMsg = decompErr;
+            if (errorMsg)
+                *errorMsg = decompErr;
             return false;
         }
 
         if (dest->write(decompressed) != decompressed.size()) {
-            if (errorMsg) *errorMsg = "Failed to write decompressed data";
+            if (errorMsg)
+                *errorMsg = "Failed to write decompressed data";
             return false;
         }
     }
@@ -486,10 +506,11 @@ bool CryptoUtils::streamCompressed(QIODevice *source, qint64 contentSize, QIODev
     return true;
 }
 
-bool CryptoUtils::streamEncryptedOnly(QIODevice *source, qint64 contentSize, QIODevice *dest,
-                                        const QString &password, QString *errorMsg)
+bool CryptoUtils::streamEncryptedOnly(QIODevice *source, qint64 contentSize, QIODevice *dest, const QString &password,
+                                      QString *errorMsg)
 {
-    if (errorMsg) errorMsg->clear();
+    if (errorMsg)
+        errorMsg->clear();
     qint64 remaining = contentSize;
 
     while (remaining > 0) {
@@ -497,7 +518,8 @@ bool CryptoUtils::streamEncryptedOnly(QIODevice *source, qint64 contentSize, QIO
 
         QByteArray encryptedChunk;
         if (!readExactFromDevice(source, chunkSize, encryptedChunk)) {
-            if (errorMsg) *errorMsg = "Failed to read encrypted chunk";
+            if (errorMsg)
+                *errorMsg = "Failed to read encrypted chunk";
             return false;
         }
         remaining -= chunkSize;
@@ -505,12 +527,14 @@ bool CryptoUtils::streamEncryptedOnly(QIODevice *source, qint64 contentSize, QIO
         QString decryptErr;
         const QByteArray decrypted = decryptString(encryptedChunk, password, &decryptErr);
         if (!decryptErr.isEmpty()) {
-            if (errorMsg) *errorMsg = decryptErr;
+            if (errorMsg)
+                *errorMsg = decryptErr;
             return false;
         }
 
         if (dest->write(decrypted) != decrypted.size()) {
-            if (errorMsg) *errorMsg = "Failed to write decrypted data";
+            if (errorMsg)
+                *errorMsg = "Failed to write decrypted data";
             return false;
         }
     }
@@ -519,33 +543,38 @@ bool CryptoUtils::streamEncryptedOnly(QIODevice *source, qint64 contentSize, QIO
 }
 
 bool CryptoUtils::streamCompressedEncrypted(QIODevice *source, qint64 contentSize, QIODevice *dest,
-                                              const QString &password, CompressionType type, QString *errorMsg)
+                                            const QString &password, CompressionType type, QString *errorMsg)
 {
-    if (errorMsg) errorMsg->clear();
+    if (errorMsg)
+        errorMsg->clear();
     qint64 bytesConsumed = 0;
 
     while (bytesConsumed < contentSize) {
         if (bytesConsumed + CHUNK_SIZE_PREFIX_LENGTH > contentSize) {
-            if (errorMsg) *errorMsg = "Incomplete chunk header";
+            if (errorMsg)
+                *errorMsg = "Incomplete chunk header";
             return false;
         }
 
         QByteArray sizeBytes;
         if (!readExactFromDevice(source, CHUNK_SIZE_PREFIX_LENGTH, sizeBytes)) {
-            if (errorMsg) *errorMsg = "Failed to read chunk size prefix";
+            if (errorMsg)
+                *errorMsg = "Failed to read chunk size prefix";
             return false;
         }
         bytesConsumed += CHUNK_SIZE_PREFIX_LENGTH;
 
         const quint32 chunkSize = readBigEndianUInt32(sizeBytes, 0);
         if (chunkSize == 0 || bytesConsumed + chunkSize > contentSize) {
-            if (errorMsg) *errorMsg = "Invalid chunk size";
+            if (errorMsg)
+                *errorMsg = "Invalid chunk size";
             return false;
         }
 
         QByteArray encryptedChunk;
         if (!readExactFromDevice(source, chunkSize, encryptedChunk)) {
-            if (errorMsg) *errorMsg = "Failed to read encrypted chunk";
+            if (errorMsg)
+                *errorMsg = "Failed to read encrypted chunk";
             return false;
         }
         bytesConsumed += chunkSize;
@@ -553,19 +582,22 @@ bool CryptoUtils::streamCompressedEncrypted(QIODevice *source, qint64 contentSiz
         QString decryptErr;
         const QByteArray decrypted = decryptString(encryptedChunk, password, &decryptErr);
         if (!decryptErr.isEmpty()) {
-            if (errorMsg) *errorMsg = QString("Chunk decryption failed: %1").arg(decryptErr);
+            if (errorMsg)
+                *errorMsg = QString("Chunk decryption failed: %1").arg(decryptErr);
             return false;
         }
 
         QString decompErr;
         const QByteArray decompressed = decompressChunk(decrypted, type, &decompErr);
         if (!decompErr.isEmpty()) {
-            if (errorMsg) *errorMsg = decompErr;
+            if (errorMsg)
+                *errorMsg = decompErr;
             return false;
         }
 
         if (dest->write(decompressed) != decompressed.size()) {
-            if (errorMsg) *errorMsg = "Failed to write decompressed data";
+            if (errorMsg)
+                *errorMsg = "Failed to write decompressed data";
             return false;
         }
     }
@@ -575,13 +607,12 @@ bool CryptoUtils::streamCompressedEncrypted(QIODevice *source, qint64 contentSiz
 
 // ── Streaming public API ─────────────────────────────────────────────────────
 
-bool CryptoUtils::processFileContentStreaming(QIODevice *source, qint64 contentSize,
-                                               QIODevice *dest, bool isCompressed,
-                                               const QString &fileName,
-                                               CompressionType compressionType,
-                                               QString *errorMsg)
+bool CryptoUtils::processFileContentStreaming(QIODevice *source, qint64 contentSize, QIODevice *dest, bool isCompressed,
+                                              const QString &fileName, CompressionType compressionType,
+                                              QString *errorMsg)
 {
-    if (errorMsg) errorMsg->clear();
+    if (errorMsg)
+        errorMsg->clear();
 
     if (contentSize == 0)
         return true;
@@ -594,13 +625,13 @@ bool CryptoUtils::processFileContentStreaming(QIODevice *source, qint64 contentS
     return streamCompressed(source, contentSize, dest, compressionType, errorMsg);
 }
 
-bool CryptoUtils::processFileContentWithPasswordStreaming(QIODevice *source, qint64 contentSize,
-                                                           QIODevice *dest, bool isCompressed,
-                                                           const QString &fileName, const QString &password,
-                                                           CompressionType compressionType,
-                                                           QString *errorMsg)
+bool CryptoUtils::processFileContentWithPasswordStreaming(QIODevice *source, qint64 contentSize, QIODevice *dest,
+                                                          bool isCompressed, const QString &fileName,
+                                                          const QString &password, CompressionType compressionType,
+                                                          QString *errorMsg)
 {
-    if (errorMsg) errorMsg->clear();
+    if (errorMsg)
+        errorMsg->clear();
 
     if (contentSize == 0)
         return true;

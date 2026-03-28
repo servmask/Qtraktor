@@ -4,14 +4,9 @@
 #include <QFileInfo>
 #include <QDateTime>
 
-ExtractionWorker::ExtractionWorker(const QString &filePath, const QString &password,
-                                   const QString &destDir, QObject *parent)
-    : QThread(parent),
-      m_filePath(filePath),
-      m_password(password),
-      m_destDir(destDir),
-      m_abort(0),
-      m_progress(0)
+ExtractionWorker::ExtractionWorker(const QString &filePath, const QString &password, const QString &destDir,
+                                   QObject *parent)
+    : QThread(parent), m_filePath(filePath), m_password(password), m_destDir(destDir), m_abort(0), m_progress(0)
 {
 }
 
@@ -86,15 +81,15 @@ void ExtractionWorker::run()
     emit phaseChanged(tr("Extracting %1...").arg(QFileInfo(m_filePath).fileName()));
 
     // Store progress atomically for main-thread polling (cross-thread signals unreliable with QThread)
-    connect(&backupFile, &BackupFile::progress, this, [this](float p) {
-        m_progress.storeRelease(static_cast<int>(p));
-    }, Qt::DirectConnection);
-    connect(&backupFile, &BackupFile::error, this, [this](const QString &msg) {
-        emit extractionError(msg);
-    }, Qt::DirectConnection);
-    connect(&backupFile, &BackupFile::logMessage, this, [this](const QString &msg) {
-        emit logMessage(msg);
-    }, Qt::DirectConnection);
+    connect(
+        &backupFile, &BackupFile::progress, this, [this](float p) { m_progress.storeRelease(static_cast<int>(p)); },
+        Qt::DirectConnection);
+    connect(
+        &backupFile, &BackupFile::error, this, [this](const QString &msg) { emit extractionError(msg); },
+        Qt::DirectConnection);
+    connect(
+        &backupFile, &BackupFile::logMessage, this, [this](const QString &msg) { emit logMessage(msg); },
+        Qt::DirectConnection);
 
     QDir destDir(m_destDir);
     bool ok = backupFile.extract(destDir);

@@ -6,8 +6,7 @@
 #include <QMimeData>
 #include <QUrl>
 
-DropOverlay::DropOverlay(QWidget *parent)
-    : QWidget(parent)
+DropOverlay::DropOverlay(QWidget *parent) : QWidget(parent)
 {
     setAcceptDrops(true);
     setCursor(Qt::PointingHandCursor);
@@ -121,10 +120,8 @@ void DropOverlay::paintEvent(QPaintEvent *event)
         // Arrow shaft
         painter.drawLine(center.x(), arrowY - arrowSize, center.x(), arrowY + arrowSize);
         // Arrow head
-        painter.drawLine(center.x(), arrowY - arrowSize,
-                         center.x() - 12, arrowY - arrowSize + 12);
-        painter.drawLine(center.x(), arrowY - arrowSize,
-                         center.x() + 12, arrowY - arrowSize + 12);
+        painter.drawLine(center.x(), arrowY - arrowSize, center.x() - 12, arrowY - arrowSize + 12);
+        painter.drawLine(center.x(), arrowY - arrowSize, center.x() + 12, arrowY - arrowSize + 12);
 
         // Text
         QFont font = painter.font();

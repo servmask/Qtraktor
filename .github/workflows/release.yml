@@ -170,7 +170,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\vcpkg\installed
-          key: vcpkg-windows-${{ hashFiles('.github/workflows/release.yml') }}
+          # Shared key with ci.yml so both workflows benefit from the same cache
+          key: vcpkg-windows-openssl-zlib
+          restore-keys: |
+            vcpkg-windows-
 
       - name: Install OpenSSL and zlib
         run: vcpkg install openssl:x64-windows zlib:x64-windows

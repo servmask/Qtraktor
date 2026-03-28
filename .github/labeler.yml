@@ -1,0 +1,50 @@
+test:
+  - changed-files:
+      - any-glob-to-any-file: 'tests/**'
+
+crypto:
+  - changed-files:
+      - any-glob-to-any-file: 'src/cryptoutils.*'
+
+parser:
+  - changed-files:
+      - any-glob-to-any-file: 'src/backupfile.*'
+
+build:
+  - changed-files:
+      - any-glob-to-any-file: '*.pro'
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: '.github/**'
+
+ui:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/mainwindow.*'
+          - 'src/*.ui'
+          - 'src/dropoverlay.*'
+          - 'src/progresswindow.*'
+          - 'src/passworddialog.*'
+
+extraction:
+  - changed-files:
+      - any-glob-to-any-file: 'src/extractionworker.*'
+
+vendor:
+  - changed-files:
+      - any-glob-to-any-file: 'vendor/**'
+
+assets:
+  - changed-files:
+      - any-glob-to-any-file: 'icons/**'
+
+installer:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'config/**'
+          - 'packages/**'
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: '*.md'
