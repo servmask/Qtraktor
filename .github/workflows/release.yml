@@ -303,6 +303,14 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
+      - name: Check for VirusTotal API key
+        env:
+          VT_KEY: ${{ secrets.VT_API_KEY }}
+        run: |
+          if [ -n "$VT_KEY" ]; then
+            echo "HAS_VT_KEY=true" >> $GITHUB_ENV
+          fi
+
       - name: Upload assets to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -314,7 +322,7 @@ jobs:
             --repo "${{ github.repository }}"
 
       - name: Submit to VirusTotal
-        if: secrets.VT_API_KEY != ''
+        if: ${{ env.HAS_VT_KEY == 'true' }}
         env:
           VT_API_KEY: ${{ secrets.VT_API_KEY }}
         run: |
@@ -375,7 +383,7 @@ jobs:
           submit_to_vt "Traktor-x86_64-${{ env.VERSION }}.AppImage/Traktor-x86_64-${{ env.VERSION }}.AppImage" "APPIMAGE"
 
       - name: Update release notes with VirusTotal links
-        if: secrets.VT_API_KEY != ''
+        if: ${{ env.HAS_VT_KEY == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
