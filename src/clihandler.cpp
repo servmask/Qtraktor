@@ -60,13 +60,18 @@ static int openAndSetup(const QString &archivePath, const QString &password, Bac
 static void addCommonOptions(QCommandLineParser &parser)
 {
     parser.addHelpOption();
-    parser.addOption(QCommandLineOption(QStringList() << "p"
-                                                      << "password",
-                                        "Password for encrypted backup", "password"));
+
+    QCommandLineOption passwordOpt(QStringList() << "p"
+                                                 << "password",
+                                   "Password for encrypted backup", "password");
+    parser.addOption(passwordOpt);
+
     parser.addOption(QCommandLineOption("json", "Machine-readable JSON output"));
-    parser.addOption(QCommandLineOption(QStringList() << "q"
-                                                      << "quiet",
-                                        "Suppress progress output"));
+
+    QCommandLineOption quietOpt(QStringList() << "q"
+                                              << "quiet",
+                                "Suppress progress output");
+    parser.addOption(quietOpt);
 }
 
 // Get password from flag or environment
