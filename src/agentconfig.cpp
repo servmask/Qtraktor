@@ -42,7 +42,8 @@ static bool findBinary(const QString &name)
     if (!QStandardPaths::findExecutable(name).isEmpty()) {
         return true;
     }
-    const QStringList searchDirs = {"/usr/local/bin", "/opt/homebrew/bin", QDir::homePath() + "/.local/bin"};
+    QStringList searchDirs;
+    searchDirs << "/usr/local/bin" << "/opt/homebrew/bin" << QDir::homePath() + "/.local/bin";
     for (const QString &dir : searchDirs) {
         if (QFile::exists(dir + "/" + name)) {
             return true;
