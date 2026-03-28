@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSaveFile>
 #include <QStandardPaths>
 
 AgentConfigManager::AgentConfigManager(const QString &configRoot)
@@ -169,14 +170,19 @@ bool AgentConfigManager::registerAgent(AgentType type, QString *errorMsg)
     mcpServers["traktor"] = traktorConfig;
     root["mcpServers"] = mcpServers;
 
-    // Write config file
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    // Write atomically via QSaveFile (writes to temp, renames on commit)
+    QSaveFile saveFile(path);
+    if (!saveFile.open(QIODevice::WriteOnly)) {
         if (errorMsg)
             *errorMsg = QString("Cannot write to %1").arg(path);
         return false;
     }
-    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    file.close();
+    saveFile.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    if (!saveFile.commit()) {
+        if (errorMsg)
+            *errorMsg = QString("Failed to commit write to %1").arg(path);
+        return false;
+    }
 
     return true;
 }
@@ -213,14 +219,19 @@ bool AgentConfigManager::unregisterAgent(AgentType type, QString *errorMsg)
     mcpServers.remove("traktor");
     root["mcpServers"] = mcpServers;
 
-    // Write config file
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    // Write atomically via QSaveFile (writes to temp, renames on commit)
+    QSaveFile saveFile(path);
+    if (!saveFile.open(QIODevice::WriteOnly)) {
         if (errorMsg)
             *errorMsg = QString("Cannot write to %1").arg(path);
         return false;
     }
-    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    file.close();
+    saveFile.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    if (!saveFile.commit()) {
+        if (errorMsg)
+            *errorMsg = QString("Failed to commit write to %1").arg(path);
+        return false;
+    }
 
     return true;
 }
