@@ -8,20 +8,12 @@
     <conclusion file="conclusion.html" mime-type="text/html"/>
 
     <choices-outline>
-        <line choice="default">
-            <line choice="com.servmask.traktor"/>
-        </line>
+        <line choice="default"/>
     </choices-outline>
 
-    <choice id="default"/>
-
-    <choice id="com.servmask.traktor"
-            visible="false"
-            customLocation="/Applications">
+    <choice id="default" title="Traktor" description="WordPress .wpress backup extractor">
         <pkg-ref id="com.servmask.traktor"/>
     </choice>
 
-    <pkg-ref id="com.servmask.traktor"
-             version="0.0.0"
-             onConclusion="none">traktor-component.pkg</pkg-ref>
+    <pkg-ref id="com.servmask.traktor">traktor-component.pkg</pkg-ref>
 </installer-gui-script>
