@@ -204,7 +204,7 @@ jobs:
           Get-ChildItem release | Copy-Item -Destination packages\com.servmask.traktor\data -Recurse
 
           # Replace version placeholders
-          $version = "${{ github.ref_name }}"
+          $version = "${{ env.VERSION }}"
           $date = Get-Date -Format yyyy-MM-dd
           (Get-Content "config\config.xml") -replace "develop", $version | Set-Content "config\config.xml"
           (Get-Content "packages\com.servmask.traktor\meta\package.xml") -replace "develop", $version | Set-Content "packages\com.servmask.traktor\meta\package.xml"
