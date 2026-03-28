@@ -57,6 +57,8 @@ SOURCES += \
     ../src/cryptoutils.cpp \
     ../src/extractionworker.cpp \
     ../src/clihandler.cpp \
+    ../src/mcpserver.cpp \
+    ../src/installcli.cpp \
     $$BZIP2_DIR/blocksort.c \
     $$BZIP2_DIR/huffman.c \
     $$BZIP2_DIR/crctable.c \
@@ -69,4 +71,6 @@ HEADERS += \
     ../src/backupfile.h \
     ../src/cryptoutils.h \
     ../src/extractionworker.h \
-    ../src/clihandler.h
+    ../src/clihandler.h \
+    ../src/mcpserver.h \
+    ../src/installcli.h

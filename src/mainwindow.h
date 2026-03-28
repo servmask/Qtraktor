@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include "backupfile.h"
 #include "extractionworker.h"
+#include "installcli.h"
 #include "passworddialog.h"
 
 namespace Ui
@@ -30,6 +31,7 @@ public slots:
 private slots:
     void onExtractionFinished(bool success);
     void onExtractionError(const QString &error);
+    void installCliTool();
 
 private:
     Ui::MainWindow *ui;

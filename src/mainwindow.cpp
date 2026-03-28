@@ -2,10 +2,12 @@
 #include "ui_mainwindow.h"
 #include <QFileDialog>
 #include <QIODevice>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QProcess>
 #include <QSettings>
+#include "installcli.h"
 #include "passworddialog.h"
 #include "cryptoutils.h"
 
@@ -17,6 +19,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(ui->dropZone, &DropOverlay::fileDropped, this, &MainWindow::openBackupFile);
     connect(ui->dropZone, &DropOverlay::clicked, this, &MainWindow::openBackup);
     ui->clearButton->setVisible(false);
+
+    // Add Tools menu with Install CLI action (macOS only visible, but harmless on other platforms)
+    QMenu *toolsMenu = menuBar()->addMenu(tr("&Tools"));
+    QAction *installCliAction = toolsMenu->addAction(tr("Install Command Line Tool..."));
+    connect(installCliAction, &QAction::triggered, this, &MainWindow::installCliTool);
 
     QSettings settings("com.servmask", "Traktor");
     restoreGeometry(settings.value("windowGeometry").toByteArray());
@@ -267,4 +274,14 @@ void MainWindow::openBackupFile(const QString &filename)
     ui->dropZone->setFileName(fileInfo.fileName());
     ui->extractBackupButton->setEnabled(true);
     ui->clearButton->setVisible(true);
+}
+
+void MainWindow::installCliTool()
+{
+    InstallResult result = installCli();
+    if (result.success) {
+        QMessageBox::information(this, tr("Install CLI"), result.message);
+    } else {
+        QMessageBox::warning(this, tr("Install CLI"), result.message);
+    }
 }

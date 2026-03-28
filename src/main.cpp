@@ -5,6 +5,8 @@
 #include "clihandler.h"
 #include "dockprogress.h"
 #include "extractionworker.h"
+#include "installcli.h"
+#include "mcpserver.h"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -39,15 +41,65 @@ static void printProgress(float percent)
     fflush(stdout);
 }
 
+static void printGlobalHelp()
+{
+    fprintf(stdout, "Qtraktor - All-in-One WP Migration and Backup extractor\n"
+                    "\n"
+                    "Usage: traktor <command> [options] <archive>\n"
+                    "\n"
+                    "Commands:\n"
+                    "  list        List contents of a .wpress archive\n"
+                    "  info        Show archive metadata (format, encryption, file count)\n"
+                    "  extract     Extract all files from a .wpress archive\n"
+                    "  cat         Stream a single file from an archive to stdout\n"
+                    "  verify      Verify archive integrity (CRC32)\n"
+                    "  mcp         Start MCP server for AI agent integration\n"
+                    "  install-cli Install command-line tool to system PATH (macOS)\n"
+                    "\n"
+                    "Global options:\n"
+                    "  -p, --password <pw>   Password for encrypted archives\n"
+                    "                        (or set TRAKTOR_PASSWORD environment variable)\n"
+                    "  --json                Machine-readable JSON output\n"
+                    "  -q, --quiet           Suppress progress output\n"
+                    "  -h, --help            Show this help\n"
+                    "  -v, --version         Show version\n"
+                    "\n"
+                    "Legacy mode:\n"
+                    "  traktor --source <file> --destination <dir> [-p password]\n"
+                    "\n"
+                    "Exit codes:\n"
+                    "  0  Success\n"
+                    "  1  General error (I/O, permissions, usage)\n"
+                    "  2  Invalid or corrupted archive\n"
+                    "  3  Wrong or missing password\n"
+                    "  4  CRC32 verification failure\n"
+                    "\n"
+                    "Examples:\n"
+                    "  traktor list backup.wpress\n"
+                    "  traktor list --json backup.wpress | jq '.path'\n"
+                    "  traktor cat backup.wpress wp-config.php | grep DB_PASSWORD\n"
+                    "  traktor verify --json backup.wpress\n"
+                    "  traktor extract backup.wpress ./output/\n");
+    fflush(stdout);
+}
+
 int main(int argc, char *argv[])
 {
     // ── Two-phase init ─────────────────────────────────────────────────────
-    // Detect subcommand from raw argv BEFORE creating any Qt application
-    // object. CLI subcommands use QCoreApplication (no display server needed).
-    // QCoreApplication is a singleton — the CLI path never creates QApplication.
-    // No event loop (exec()) in CLI path: queued connections will silently drop.
+    // Detect subcommand or --help from raw argv BEFORE creating any Qt
+    // application object. CLI subcommands use QCoreApplication (no display
+    // server needed). QCoreApplication is a singleton — the CLI path never
+    // creates QApplication. No event loop (exec()) in CLI path.
     if (argc >= 2) {
         const QString sub = QString::fromLocal8Bit(argv[1]);
+
+        // Global help — intercept before QApplication to prevent
+        // QCommandLineParser's auto-help from showing the old GUI-mode help
+        if (sub == "--help" || sub == "-h") {
+            printGlobalHelp();
+            return 0;
+        }
+
         if (sub == "list") {
             QCoreApplication app(argc, argv);
             return cmdList(argc, argv);
@@ -67,6 +119,14 @@ int main(int argc, char *argv[])
         if (sub == "verify") {
             QCoreApplication app(argc, argv);
             return cmdVerify(argc, argv);
+        }
+        if (sub == "mcp") {
+            QCoreApplication app(argc, argv);
+            return cmdMcp();
+        }
+        if (sub == "install-cli") {
+            QCoreApplication app(argc, argv);
+            return cmdInstallCli();
         }
     }
 
