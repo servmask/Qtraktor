@@ -199,6 +199,12 @@ jobs:
           qmake tests.pro
           nmake -f Makefile.Release
 
+      - name: Deploy test dependencies
+        shell: cmd
+        run: |
+          cd tests
+          windeployqt release\tst_qtraktor.exe
+
       - name: Run tests
         shell: cmd
         run: |
