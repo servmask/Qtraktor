@@ -140,17 +140,13 @@ jobs:
       - name: Build PKG installer
         if: github.event_name == 'pull_request'
         run: |
-          # Create payload directory structure
-          mkdir -p pkg-root/Applications
-          cp -R Traktor.app pkg-root/Applications/
-
-          # Build component package
+          # Build component package using --component (proper .app bundle handling)
           pkgbuild \
-            --root pkg-root \
+            --component Traktor.app \
             --scripts scripts/macos-pkg \
             --identifier com.servmask.traktor \
             --version 0.0.0-dev \
-            --install-location / \
+            --install-location /Applications \
             traktor-component.pkg
 
           # Build product archive with custom distribution (welcome, conclusion, title)
