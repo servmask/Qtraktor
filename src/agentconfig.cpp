@@ -7,7 +7,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
-#include <QTemporaryFile>
 
 AgentConfigManager::AgentConfigManager(const QString &configRoot)
     : m_configRoot(configRoot.isEmpty() ? QDir::homePath() : configRoot)
@@ -170,26 +169,14 @@ bool AgentConfigManager::registerAgent(AgentType type, QString *errorMsg)
     mcpServers["traktor"] = traktorConfig;
     root["mcpServers"] = mcpServers;
 
-    // Write atomically: temp file + rename
-    QTemporaryFile tmpFile(fi.dir().absolutePath() + "/traktor-XXXXXX.json");
-    tmpFile.setAutoRemove(false);
-    if (!tmpFile.open()) {
-        if (errorMsg)
-            *errorMsg = QString("Cannot create temp file in %1").arg(fi.dir().absolutePath());
-        return false;
-    }
-
-    tmpFile.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    tmpFile.close();
-
-    // Atomic rename
-    QFile::remove(path);
-    if (!QFile::rename(tmpFile.fileName(), path)) {
+    // Write config file
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         if (errorMsg)
             *errorMsg = QString("Cannot write to %1").arg(path);
-        QFile::remove(tmpFile.fileName());
         return false;
     }
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    file.close();
 
     return true;
 }
@@ -226,26 +213,14 @@ bool AgentConfigManager::unregisterAgent(AgentType type, QString *errorMsg)
     mcpServers.remove("traktor");
     root["mcpServers"] = mcpServers;
 
-    // Write atomically
-    QFileInfo fi(path);
-    QTemporaryFile tmpFile(fi.dir().absolutePath() + "/traktor-XXXXXX.json");
-    tmpFile.setAutoRemove(false);
-    if (!tmpFile.open()) {
-        if (errorMsg)
-            *errorMsg = QString("Cannot create temp file in %1").arg(fi.dir().absolutePath());
-        return false;
-    }
-
-    tmpFile.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    tmpFile.close();
-
-    QFile::remove(path);
-    if (!QFile::rename(tmpFile.fileName(), path)) {
+    // Write config file
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         if (errorMsg)
             *errorMsg = QString("Cannot write to %1").arg(path);
-        QFile::remove(tmpFile.fileName());
         return false;
     }
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    file.close();
 
     return true;
 }
