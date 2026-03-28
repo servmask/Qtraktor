@@ -1,0 +1,12 @@
+#!/bin/bash
+# Post-install script for Traktor PKG installer.
+# Runs as root during installation.
+
+# Create CLI symlink so 'traktor' is available in terminal
+mkdir -p /usr/local/bin
+ln -sf /Applications/Traktor.app/Contents/MacOS/Traktor /usr/local/bin/traktor
+
+# MCP agent registration is handled by the first-run dialog (runs as the
+# actual user) rather than here (runs as root with unreliable $HOME).
+
+exit 0

@@ -136,9 +136,39 @@ jobs:
           export PATH="$(brew --prefix qt@5)/bin:$PATH"
           macdeployqt Traktor.app
           codesign --force --deep --sign - Traktor.app
+
+      - name: Build PKG installer
+        if: github.event_name == 'pull_request'
+        run: |
+          # Create payload directory structure
+          mkdir -p pkg-root/Applications
+          cp -R Traktor.app pkg-root/Applications/
+
+          # Build component package
+          pkgbuild \
+            --root pkg-root \
+            --scripts scripts/macos-pkg \
+            --identifier com.servmask.traktor \
+            --version 0.0.0-dev \
+            --install-location / \
+            traktor-component.pkg
+
+          # Build product archive (final installer PKG)
+          productbuild \
+            --package traktor-component.pkg \
+            Traktor.pkg
+
+          # Also keep the app tar for direct testing
           tar -cf Traktor.app.tar Traktor.app
 
-      - name: Upload build artifact
+      - name: Upload PKG artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Traktor-macOS-PKG
+          path: Traktor.pkg
+
+      - name: Upload app artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
