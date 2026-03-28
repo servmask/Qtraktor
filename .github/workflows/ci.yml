@@ -146,11 +146,13 @@ jobs:
           echo "App bundle size: $(du -sh Traktor.app | cut -f1)"
 
           # Build component package using --component (proper .app bundle handling)
-          # Use component plist to disable bundle relocation (prevents installer
+          # Create component plist to disable bundle relocation (prevents installer
           # from finding an existing Traktor.app elsewhere and installing there)
-          pkgbuild --analyze --component Traktor.app /tmp/component.plist
-          # Set BundleIsRelocatable to false in the generated plist
+          mkdir -p /tmp/pkg-root
+          cp -R Traktor.app /tmp/pkg-root/
+          pkgbuild --analyze --root /tmp/pkg-root /tmp/component.plist
           /usr/libexec/PlistBuddy -c "Set :0:BundleIsRelocatable false" /tmp/component.plist
+          rm -rf /tmp/pkg-root
 
           pkgbuild \
             --component Traktor.app \
