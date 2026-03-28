@@ -206,13 +206,10 @@ jobs:
           windeployqt release\tst_qtraktor.exe
 
       - name: Run tests
-        shell: pwsh
+        shell: cmd
         run: |
           cd tests
-          $env:QT_DEBUG_PLUGINS = "1"
-          & release\tst_qtraktor.exe 2>&1
-          Write-Host "Exit code: $LASTEXITCODE"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          release\tst_qtraktor.exe
 
       - name: Bundle app for testing
         if: github.event_name == 'pull_request'
