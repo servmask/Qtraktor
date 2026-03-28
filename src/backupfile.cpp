@@ -194,7 +194,7 @@ bool BackupFile::extractSingleFile(const QString &targetPath, QIODevice *dest)
         return false;
     }
 
-    const QString normalizedTarget = targetPath.startsWith("./") ? targetPath.mid(2) : targetPath;
+    const QString normalizedTarget = normalizePath("", targetPath);
 
     while (!atEnd()) {
         HeaderInfo info;

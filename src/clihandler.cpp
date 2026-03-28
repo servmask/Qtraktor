@@ -395,6 +395,10 @@ int cmdVerify(int /*argc*/, char * /*argv*/[])
                 if (!streamOk) {
                     status = "error";
                     allPassed = false;
+                    if (!processError.isEmpty()) {
+                        fprintf(stderr, "Error verifying '%s': %s\n", path.toLocal8Bit().constData(),
+                                processError.toLocal8Bit().constData());
+                    }
                 } else if (actualCrc == info.crc32) {
                     status = "pass";
                 } else {
@@ -408,6 +412,9 @@ int cmdVerify(int /*argc*/, char * /*argv*/[])
                     obj["status"] = status;
                     obj["expectedCrc"] = info.crc32;
                     obj["actualCrc"] = actualCrc;
+                    if (!processError.isEmpty()) {
+                        obj["error"] = processError;
+                    }
                     fprintf(stdout, "%s\n", QJsonDocument(obj).toJson(QJsonDocument::Compact).constData());
                 } else {
                     fprintf(stdout, "%s\t%s\t%s\t%s\n", status.toLocal8Bit().constData(),
