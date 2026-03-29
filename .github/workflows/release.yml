@@ -10,7 +10,14 @@ env:
 
 jobs:
   build-macos:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - runner: macos-latest
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -25,11 +32,10 @@ jobs:
       - name: Install dependencies
         run: brew install openssl pkg-config
 
-      - name: Build universal binary
+      - name: Build
         run: |
           SSL_PREFIX="$(brew --prefix openssl)"
           cmake -B build -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
             -DOPENSSL_ROOT_DIR="$SSL_PREFIX" \
             -DBUILD_TESTING=OFF
           cmake --build build -j"$(sysctl -n hw.ncpu)"
@@ -53,25 +59,83 @@ jobs:
           rm -rf build/Traktor.app/Contents/PlugIns/networkinformation \
                  build/Traktor.app/Contents/PlugIns/tls
 
-      - name: Codesign app
+      - name: Archive app (preserve symlinks)
+        run: tar -cf Traktor-${{ matrix.arch }}.app.tar -C build Traktor.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Traktor-${{ matrix.arch }}.app
+          path: Traktor-${{ matrix.arch }}.app.tar
+
+  package-macos:
+    needs: build-macos
+    runs-on: macos-latest
+    steps:
+      - name: Download arm64 app
+        uses: actions/download-artifact@v4
+        with:
+          name: Traktor-arm64.app
+          path: arm64
+
+      - name: Download x86_64 app
+        uses: actions/download-artifact@v4
+        with:
+          name: Traktor-x86_64.app
+          path: x86_64
+
+      - name: Extract archives
+        run: |
+          tar -xf arm64/Traktor-arm64.app.tar -C arm64
+          tar -xf x86_64/Traktor-x86_64.app.tar -C x86_64
+
+      - name: Create universal binary
+        run: |
+          cp -R arm64/Traktor.app Universal-Traktor.app
+
+          # Merge all Mach-O binaries with lipo
+          find arm64/Traktor.app -type f | while IFS= read -rarm_file; do
+            rel="${arm_file#arm64/Traktor.app/}"
+            intel_file="x86_64/Traktor.app/$rel"
+            universal_file="Universal-Traktor.app/$rel"
+
+            # Check if both files exist and are Mach-O
+            if [ -f "$intel_file" ] && file "$arm_file" | grep -q "Mach-O"; then
+              echo "Merging: $rel"
+              lipo -create "$arm_file" "$intel_file" -output "$universal_file"
+            fi
+          done
+
+      - name: Codesign universal app
         run: |
           # Sign frameworks and dylibs inside-out before signing the app
-          find build/Traktor.app/Contents/Frameworks -name "*.framework" -type d | while IFS= read -rfw; do
+          find Universal-Traktor.app/Contents/Frameworks -name "*.framework" -type d | while IFS= read -rfw; do
             codesign --force --sign - "$fw"
           done
-          find build/Traktor.app/Contents/Frameworks -name "*.dylib" -type f | while IFS= read -rlib; do
+          find Universal-Traktor.app/Contents/Frameworks -name "*.dylib" -type f | while IFS= read -rlib; do
             codesign --force --sign - "$lib"
           done
-          find build/Traktor.app/Contents/PlugIns -type f -name "*.dylib" 2>/dev/null | while IFS= read -rlib; do
+          find Universal-Traktor.app/Contents/PlugIns -type f -name "*.dylib" 2>/dev/null | while IFS= read -rlib; do
             codesign --force --sign - "$lib"
           done
-          codesign --force --sign - build/Traktor.app
+          codesign --force --sign - Universal-Traktor.app
+
+      - name: Rename app before checkout
+        run: mv Universal-Traktor.app /tmp/Traktor.app
+
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/macos-pkg
+          sparse-checkout-cone-mode: false
 
       - name: Build PKG installer
         run: |
+          mv /tmp/Traktor.app Traktor.app
+
           # Generate component plist and disable bundle relocation
           mkdir -p /tmp/pkg-root
-          cp -R build/Traktor.app /tmp/pkg-root/
+          cp -R Traktor.app /tmp/pkg-root/
           pkgbuild --analyze --root /tmp/pkg-root /tmp/component.plist
           /usr/libexec/PlistBuddy -c "Set :0:BundleIsRelocatable false" /tmp/component.plist
 
@@ -251,7 +315,7 @@ jobs:
 
   upload:
     if: github.event_name == 'release'
-    needs: [build-macos, build-windows, build-linux]
+    needs: [package-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
