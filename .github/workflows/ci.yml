@@ -220,11 +220,11 @@ jobs:
 
       - name: Deploy test dependencies
         shell: cmd
-        run: windeployqt build\tst_qtraktor.exe
+        run: windeployqt build\tests\tst_qtraktor.exe
 
       - name: Run tests
         shell: cmd
-        run: build\tst_qtraktor.exe
+        run: build\tests\tst_qtraktor.exe
 
       - name: Bundle app for testing
         if: github.event_name == 'pull_request'
