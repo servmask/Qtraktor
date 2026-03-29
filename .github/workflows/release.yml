@@ -43,7 +43,6 @@ jobs:
           # Traktor is a pure Widgets app with zero QML, SVG, GIF, or network use.
           rm -rf build/Traktor.app/Contents/Frameworks/QtQml*.framework \
                  build/Traktor.app/Contents/Frameworks/QtQuick*.framework \
-                 build/Traktor.app/Contents/Frameworks/QtDBus.framework \
                  build/Traktor.app/Contents/Frameworks/QtSvg.framework
           rm -f build/Traktor.app/Contents/PlugIns/iconengines/libqsvgicon.dylib \
                 build/Traktor.app/Contents/PlugIns/imageformats/libqgif.dylib \
