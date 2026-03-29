@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2](https://github.com/servmask/Qtraktor/compare/v1.7.1...v1.7.2) (2026-03-29)
+
+
+### Bug Fixes
+
+* restore two-runner lipo matrix for macOS universal binary ([#31](https://github.com/servmask/Qtraktor/issues/31)) ([919ef16](https://github.com/servmask/Qtraktor/commit/919ef167b02f6f3e64939909e1c676e5cfcebd47))
+
 ## [1.7.1](https://github.com/servmask/Qtraktor/compare/v1.7.0...v1.7.1) (2026-03-29)
 
 
