@@ -120,7 +120,13 @@ jobs:
       - name: Bundle app for testing
         if: github.event_name == 'pull_request'
         run: |
-          macdeployqt build/Traktor.app
+          macdeployqt build/Traktor.app -no-quick-import
+          # Remove QML/Quick frameworks — Traktor is a pure Widgets app.
+          # macdeployqt in Qt 6 bundles these unnecessarily via plugin deps.
+          rm -rf build/Traktor.app/Contents/Frameworks/QtQml*.framework \
+                 build/Traktor.app/Contents/Frameworks/QtQuick*.framework \
+                 build/Traktor.app/Contents/Frameworks/QtQmlModels*.framework \
+                 build/Traktor.app/Contents/Frameworks/QtQmlWorkerScript*.framework
           codesign --force --deep --sign - build/Traktor.app
 
       - name: Build PKG installer
