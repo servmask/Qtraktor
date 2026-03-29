@@ -37,12 +37,22 @@ jobs:
       - name: Bundle Qt frameworks
         run: |
           macdeployqt build/Traktor.app -no-quick-import
-          # Remove QML/Quick frameworks — Traktor is a pure Widgets app.
-          # macdeployqt in Qt 6 bundles these unnecessarily via plugin deps.
+
+          # Strip frameworks and plugins Traktor does not use.
+          # macdeployqt in Qt 6 bundles these via transitive plugin deps.
+          # Traktor is a pure Widgets app with zero QML, SVG, GIF, or network use.
           rm -rf build/Traktor.app/Contents/Frameworks/QtQml*.framework \
                  build/Traktor.app/Contents/Frameworks/QtQuick*.framework \
-                 build/Traktor.app/Contents/Frameworks/QtQmlModels*.framework \
-                 build/Traktor.app/Contents/Frameworks/QtQmlWorkerScript*.framework
+                 build/Traktor.app/Contents/Frameworks/QtDBus.framework \
+                 build/Traktor.app/Contents/Frameworks/QtSvg.framework
+          rm -f build/Traktor.app/Contents/PlugIns/iconengines/libqsvgicon.dylib \
+                build/Traktor.app/Contents/PlugIns/imageformats/libqgif.dylib \
+                build/Traktor.app/Contents/PlugIns/imageformats/libqico.dylib \
+                build/Traktor.app/Contents/PlugIns/tls/libqopensslbackend.dylib \
+                build/Traktor.app/Contents/PlugIns/tls/libqsecuretransportbackend.dylib \
+                build/Traktor.app/Contents/PlugIns/tls/libqcertonlybackend.dylib
+          rm -rf build/Traktor.app/Contents/PlugIns/networkinformation \
+                 build/Traktor.app/Contents/PlugIns/tls
 
       - name: Codesign app
         run: |
