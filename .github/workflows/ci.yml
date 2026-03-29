@@ -120,7 +120,7 @@ jobs:
       - name: Bundle app for testing
         if: github.event_name == 'pull_request'
         run: |
-          macdeployqt build/Traktor.app -no-quick-import
+          macdeployqt build/Traktor.app
 
           # Strip frameworks and plugins Traktor does not use.
           # macdeployqt in Qt 6 bundles these via transitive plugin deps.
