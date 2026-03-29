@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.1](https://github.com/servmask/Qtraktor/compare/v1.7.0...v1.7.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* keep QtDBus.framework in macOS bundle (QtGui runtime dependency) ([#30](https://github.com/servmask/Qtraktor/issues/30)) ([d3bb265](https://github.com/servmask/Qtraktor/commit/d3bb2658359e0f38976eab090504037640e4040a))
+* update Homebrew Cask template in release.yml to use pkg directive ([49273f0](https://github.com/servmask/Qtraktor/commit/49273f0ddbf4bee3cc5a2ee2799aedb35e551600))
+
+
+### Documentation
+
+* fix download page to match .pkg assets instead of .dmg ([a2ab180](https://github.com/servmask/Qtraktor/commit/a2ab18078d37b26ca6ba2348cdc377887963e523))
+
 ## [1.7.0](https://github.com/servmask/Qtraktor/compare/v1.6.0...v1.7.0) (2026-03-28)
 
 
