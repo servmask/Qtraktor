@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QString>
 #include <QDateTime>
+#include <QTimeZone>
 #include <QRegularExpression>
 #include <functional>
 #include <zlib.h>
@@ -273,7 +274,7 @@ private:
             bool mtimeOk = false;
             const qint64 mtimeVal = mtimeStr.trimmed().toLongLong(&mtimeOk);
             if (mtimeOk && mtimeVal > 0) {
-                outInfo.mtime = QDateTime::fromMSecsSinceEpoch(mtimeVal * 1000, Qt::UTC).toString(Qt::ISODate);
+                outInfo.mtime = QDateTime::fromMSecsSinceEpoch(mtimeVal * 1000, QTimeZone::UTC).toString(Qt::ISODate);
             }
         }
 
@@ -287,10 +288,10 @@ private:
         return true;
     }
 
-    static QString parseNullTerminatedString(const QByteArray &src, int offset, int length)
+    static QString parseNullTerminatedString(const QByteArray &src, qsizetype offset, qsizetype length)
     {
         QByteArray bytes = src.mid(offset, length);
-        const int nullPos = bytes.indexOf('\0');
+        const qsizetype nullPos = bytes.indexOf('\0');
         if (nullPos >= 0) {
             bytes = bytes.left(nullPos);
         }
@@ -341,7 +342,7 @@ private:
 
         while (!file.atEnd()) {
             const QByteArray chunk = file.read(kCrcChunkSize);
-            crc = ::crc32(crc, reinterpret_cast<const Bytef *>(chunk.constData()), chunk.size());
+            crc = ::crc32(crc, reinterpret_cast<const Bytef *>(chunk.constData()), static_cast<uInt>(chunk.size()));
         }
 
         file.close();

@@ -10,112 +10,52 @@ env:
 
 jobs:
   build-macos:
-    strategy:
-      matrix:
-        include:
-          - runner: macos-latest
-            arch: arm64
-          - runner: macos-15-intel
-            arch: x86_64
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: brew install qt@5 openssl pkg-config
-
-      - name: Build
-        run: |
-          QT_PREFIX="$(brew --prefix qt@5)"
-          SSL_PREFIX="$(brew --prefix openssl)"
-          export PATH="$QT_PREFIX/bin:$PATH"
-          export PKG_CONFIG_PATH="$SSL_PREFIX/lib/pkgconfig"
-          qmake Qtraktor.pro
-          make -j"$(sysctl -n hw.ncpu)"
-
-      - name: Bundle Qt frameworks
-        run: |
-          QT_PREFIX="$(brew --prefix qt@5)"
-          export PATH="$QT_PREFIX/bin:$PATH"
-          macdeployqt Traktor.app
-
-      - name: Archive app (preserve symlinks)
-        run: tar -cf Traktor-${{ matrix.arch }}.app.tar Traktor.app
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Traktor-${{ matrix.arch }}.app
-          path: Traktor-${{ matrix.arch }}.app.tar
-
-  package-macos:
-    needs: build-macos
     runs-on: macos-latest
     steps:
-      - name: Download arm64 app
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
         with:
-          name: Traktor-arm64.app
-          path: arm64
+          version: '6.8.0'
+          host: mac
+          target: desktop
+          cache: true
 
-      - name: Download x86_64 app
-        uses: actions/download-artifact@v4
-        with:
-          name: Traktor-x86_64.app
-          path: x86_64
+      - name: Install dependencies
+        run: brew install openssl pkg-config
 
-      - name: Extract archives
+      - name: Build universal binary
         run: |
-          tar -xf arm64/Traktor-arm64.app.tar -C arm64
-          tar -xf x86_64/Traktor-x86_64.app.tar -C x86_64
+          SSL_PREFIX="$(brew --prefix openssl)"
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DOPENSSL_ROOT_DIR="$SSL_PREFIX" \
+            -DBUILD_TESTING=OFF
+          cmake --build build -j"$(sysctl -n hw.ncpu)"
 
-      - name: Create universal binary
-        run: |
-          cp -R arm64/Traktor.app Universal-Traktor.app
+      - name: Bundle Qt frameworks
+        run: macdeployqt build/Traktor.app
 
-          # Merge all Mach-O binaries with lipo
-          find arm64/Traktor.app -type f | while IFS= read -rarm_file; do
-            rel="${arm_file#arm64/Traktor.app/}"
-            intel_file="x86_64/Traktor.app/$rel"
-            universal_file="Universal-Traktor.app/$rel"
-
-            # Check if both files exist and are Mach-O
-            if [ -f "$intel_file" ] && file "$arm_file" | grep -q "Mach-O"; then
-              echo "Merging: $rel"
-              lipo -create "$arm_file" "$intel_file" -output "$universal_file"
-            fi
-          done
-
-      - name: Codesign universal app
+      - name: Codesign app
         run: |
           # Sign frameworks and dylibs inside-out before signing the app
-          find Universal-Traktor.app/Contents/Frameworks -name "*.framework" -type d | while IFS= read -rfw; do
+          find build/Traktor.app/Contents/Frameworks -name "*.framework" -type d | while IFS= read -rfw; do
             codesign --force --sign - "$fw"
           done
-          find Universal-Traktor.app/Contents/Frameworks -name "*.dylib" -type f | while IFS= read -rlib; do
+          find build/Traktor.app/Contents/Frameworks -name "*.dylib" -type f | while IFS= read -rlib; do
             codesign --force --sign - "$lib"
           done
-          find Universal-Traktor.app/Contents/PlugIns -type f -name "*.dylib" 2>/dev/null | while IFS= read -rlib; do
+          find build/Traktor.app/Contents/PlugIns -type f -name "*.dylib" 2>/dev/null | while IFS= read -rlib; do
             codesign --force --sign - "$lib"
           done
-          codesign --force --sign - Universal-Traktor.app
-
-      - name: Rename app before checkout
-        run: mv Universal-Traktor.app /tmp/Traktor.app
-
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            scripts/macos-pkg
-          sparse-checkout-cone-mode: false
+          codesign --force --sign - build/Traktor.app
 
       - name: Build PKG installer
         run: |
-          mv /tmp/Traktor.app Traktor.app
-
           # Generate component plist and disable bundle relocation
           mkdir -p /tmp/pkg-root
-          cp -R Traktor.app /tmp/pkg-root/
+          cp -R build/Traktor.app /tmp/pkg-root/
           pkgbuild --analyze --root /tmp/pkg-root /tmp/component.plist
           /usr/libexec/PlistBuddy -c "Set :0:BundleIsRelocatable false" /tmp/component.plist
 
@@ -148,13 +88,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Qt
+      - name: Install Qt 6
         uses: jurplel/install-qt-action@v4
         with:
-          version: '5.15.2'
+          version: '6.8.0'
           host: windows
           target: desktop
-          arch: win64_msvc2019_64
+          arch: win64_msvc2022_64
           tools: tools_ifw
           cache: true
 
@@ -167,44 +107,36 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\vcpkg\installed
-          # Shared key with ci.yml so both workflows benefit from the same cache
-          key: vcpkg-windows-openssl-zlib
+          key: vcpkg-windows-msvc2022-openssl-zlib
           restore-keys: |
-            vcpkg-windows-
+            vcpkg-windows-msvc2022-
 
       - name: Install OpenSSL and zlib
         run: vcpkg install openssl:x64-windows zlib:x64-windows
 
-      - name: Set vcpkg paths
-        shell: pwsh
-        run: |
-          "OPENSSL_DIR=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "LIB=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "INCLUDE=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include;$env:INCLUDE" | Out-File -FilePath $env:GITHUB_ENV -Append
-
       - name: Build
         shell: cmd
         run: |
-          qmake Qtraktor.pro
-          nmake -f Makefile.Release
+          cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=%VCPKG_INSTALLATION_ROOT%\scripts\buildsystems\vcpkg.cmake -DBUILD_TESTING=OFF
+          cmake --build build
 
       - name: Create installer
         shell: pwsh
         run: |
           # Bundle Qt runtime DLLs
-          windeployqt release\Traktor.exe
+          windeployqt build\Traktor.exe
 
           # Bundle vcpkg DLLs (OpenSSL + zlib)
-          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libssl*.dll" -Destination release\
-          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libcrypto*.dll" -Destination release\
-          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\zlib1.dll" -Destination release\
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libssl*.dll" -Destination build\
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libcrypto*.dll" -Destination build\
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\zlib1.dll" -Destination build\
 
           # Bundle file type icon for .wpress association
-          Copy-Item "icons\file.ico" -Destination release\
+          Copy-Item "icons\file.ico" -Destination build\
 
           # Prepare installer package data
           New-Item -ItemType Directory -Path packages\com.servmask.traktor\data -Force
-          Get-ChildItem release | Copy-Item -Destination packages\com.servmask.traktor\data -Recurse
+          Get-ChildItem build -Exclude "*.obj","*.ilk","*.pdb","CMake*","cmake*","*.cmake","tst_*" | Copy-Item -Destination packages\com.servmask.traktor\data -Recurse
 
           # Replace version placeholders
           $version = "${{ env.VERSION }}"
@@ -225,18 +157,28 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-22.04
+    env:
+      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.0'
+          host: linux
+          target: desktop
+          cache: true
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y qtbase5-dev qt5-qmake libssl-dev zlib1g-dev pkg-config libfuse2
+          sudo apt-get install -y cmake libgl1-mesa-dev libssl-dev zlib1g-dev pkg-config libfuse2
 
       - name: Build
         run: |
-          qmake Qtraktor.pro
-          make -j"$(nproc)"
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build build -j"$(nproc)"
 
       - name: Cache linuxdeploy
         uses: actions/cache@v4
@@ -274,9 +216,10 @@ jobs:
           cp wpress.xml AppDir/usr/share/mime/packages/
 
           # Build AppImage
+          export QMAKE="$(find "$Qt6_DIR" -name qmake6 -o -name qmake 2>/dev/null | head -1)"
           ./linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
-            --executable Traktor \
+            --executable build/Traktor \
             --desktop-file traktor.desktop \
             --icon-file icons/traktor.png \
             --plugin qt \
@@ -292,7 +235,7 @@ jobs:
 
   upload:
     if: github.event_name == 'release'
-    needs: [package-macos, build-windows, build-linux]
+    needs: [build-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -467,4 +410,3 @@ jobs:
               --notes "${EXISTING}${APPEND}" \
               --repo "${{ github.repository }}"
           fi
-

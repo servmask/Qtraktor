@@ -25,7 +25,7 @@ SetupDialog::SetupDialog(QWidget *parent) : QDialog(parent)
                                         "Select which agents to register as MCP tool providers:")));
         layout->addSpacing(10);
 
-        for (int i = 0; i < m_agents.size(); i++) {
+        for (qsizetype i = 0; i < m_agents.size(); i++) {
             const AgentInfo &agent = m_agents.at(i);
             if (!agent.detected)
                 continue;
@@ -60,9 +60,9 @@ SetupDialog::SetupDialog(QWidget *parent) : QDialog(parent)
 void SetupDialog::onSetup()
 {
     int registered = 0;
-    int cbIndex = 0;
+    qsizetype cbIndex = 0;
 
-    for (int i = 0; i < m_agents.size(); i++) {
+    for (qsizetype i = 0; i < m_agents.size(); i++) {
         const AgentInfo &agent = m_agents.at(i);
         if (!agent.detected)
             continue;

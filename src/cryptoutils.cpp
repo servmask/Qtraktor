@@ -7,8 +7,6 @@
 #include <cstring>
 
 #include <openssl/evp.h>
-#include <openssl/aes.h>
-#include <openssl/sha.h>
 
 #ifndef AES_BLOCK_SIZE
 #define AES_BLOCK_SIZE 16
@@ -199,7 +197,7 @@ QByteArray CryptoUtils::processFileContent(const QByteArray &fileContent, bool i
     }
 
     QByteArray result;
-    int pos = 0;
+    qsizetype pos = 0;
 
     while (pos < fileContent.size()) {
         if (pos + CHUNK_SIZE_PREFIX_LENGTH > fileContent.size()) {
@@ -211,7 +209,7 @@ QByteArray CryptoUtils::processFileContent(const QByteArray &fileContent, bool i
         const quint32 chunkSize = readBigEndianUInt32(fileContent, pos);
         pos += CHUNK_SIZE_PREFIX_LENGTH;
 
-        if (chunkSize == 0 || pos + static_cast<int>(chunkSize) > fileContent.size()) {
+        if (chunkSize == 0 || pos + static_cast<qsizetype>(chunkSize) > fileContent.size()) {
             if (errorMsg)
                 *errorMsg = "Invalid chunk size";
             return {};
@@ -360,7 +358,7 @@ QByteArray CryptoUtils::processFileContentWithPassword(const QByteArray &fileCon
     }
 
     QByteArray result;
-    int pos = 0;
+    qsizetype pos = 0;
 
     while (pos < fileContent.size()) {
         if (pos + CHUNK_SIZE_PREFIX_LENGTH > fileContent.size()) {
@@ -372,7 +370,7 @@ QByteArray CryptoUtils::processFileContentWithPassword(const QByteArray &fileCon
         const quint32 chunkSize = readBigEndianUInt32(fileContent, pos);
         pos += CHUNK_SIZE_PREFIX_LENGTH;
 
-        if (chunkSize == 0 || pos + static_cast<int>(chunkSize) > fileContent.size()) {
+        if (chunkSize == 0 || pos + static_cast<qsizetype>(chunkSize) > fileContent.size()) {
             if (errorMsg)
                 *errorMsg = "Invalid chunk size";
             return {};

@@ -307,7 +307,7 @@ bool BackupFile::verifyArchiveCrc()
         if (chunk.isEmpty()) {
             break;
         }
-        crc = ::crc32(crc, reinterpret_cast<const Bytef *>(chunk.constData()), chunk.size());
+        crc = ::crc32(crc, reinterpret_cast<const Bytef *>(chunk.constData()), static_cast<uInt>(chunk.size()));
         remaining -= chunk.size();
     }
 

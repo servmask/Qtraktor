@@ -24,14 +24,14 @@ void claimFileType()
         NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
         if (!bundleId) return;
 
-        // Set Traktor as the default app for our custom UTI
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         LSSetDefaultRoleHandlerForContentType(
             CFSTR("com.servmask.wpress"),
             kLSRolesAll,
             (__bridge CFStringRef)bundleId
         );
 
-        // Also claim the .wpress extension directly via public.filename-extension
         CFStringRef uti = UTTypeCreatePreferredIdentifierForTag(
             kUTTagClassFilenameExtension,
             CFSTR("wpress"),
@@ -45,6 +45,7 @@ void claimFileType()
             );
             CFRelease(uti);
         }
+#pragma clang diagnostic pop
     }
 }
 

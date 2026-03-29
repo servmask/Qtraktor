@@ -3,6 +3,12 @@
     ".": {
       "release-type": "simple",
       "draft": false,
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "CMakeLists.txt"
+        }
+      ],
       "changelog-sections": [
         { "type": "feat", "section": "Features" },
         { "type": "fix", "section": "Bug Fixes" },
