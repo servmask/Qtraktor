@@ -8,22 +8,24 @@ See the [README](README.md) for build instructions on macOS, Windows, and Linux.
 
 ### Running the Test Suite
 
+Tests are built automatically with the main project (`BUILD_TESTING=ON` by default):
+
 ```bash
-cd tests
-qmake tests.pro
-make -j$(nproc)        # Linux
-make -j$(sysctl -n hw.ncpu)  # macOS
-./tst_qtraktor
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)        # Linux
+cmake --build build -j$(sysctl -n hw.ncpu)  # macOS
+cd build && ctest --output-on-failure
 ```
 
 On Windows with MSVC:
 
 ```powershell
-cd tests
-qmake.exe tests.pro
-nmake -f Makefile.Release
-release\tst_qtraktor.exe
+cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+cd build && ctest --output-on-failure
 ```
+
+On headless Linux (CI), set `QT_QPA_PLATFORM=offscreen` because tests use QApplication.
 
 ## Development Workflow
 
@@ -74,7 +76,7 @@ CI will reject PRs with style violations regardless of which method you use.
 
 ## Testing
 
-All new functionality should include tests. Tests use the [Qt Test](https://doc.qt.io/qt-5/qtest-overview.html) framework.
+All new functionality should include tests. Tests use the [Qt Test](https://doc.qt.io/qt-6/qtest-overview.html) framework.
 
 Test files live in `tests/` and follow the naming convention `tst_<module>.cpp`.
 

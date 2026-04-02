@@ -77,7 +77,7 @@ body:
     attributes:
       label: Qt Version
       description: If known (most users won't know this)
-      placeholder: "e.g., 5.15.2"
+      placeholder: "e.g., 6.8.0"
 
   - type: textarea
     id: context

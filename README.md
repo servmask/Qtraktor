@@ -97,8 +97,7 @@ After registration, your AI agent can use Traktor as a tool — ask it "what's i
 <summary><strong>macOS</strong></summary>
 
 ```bash
-brew install qt@5 openssl pkg-config
-export PATH="/opt/homebrew/opt/qt@5/bin:$PATH"
+brew install qt openssl pkg-config cmake
 ```
 </details>
 
@@ -106,40 +105,43 @@ export PATH="/opt/homebrew/opt/qt@5/bin:$PATH"
 <summary><strong>Linux (Debian/Ubuntu)</strong></summary>
 
 ```bash
-sudo apt install qt5-qmake qtbase5-dev libssl-dev zlib1g-dev pkg-config
+sudo apt install cmake qt6-base-dev libgl1-mesa-dev libssl-dev zlib1g-dev pkg-config
 ```
 </details>
 
 <details>
 <summary><strong>Windows (MSVC)</strong></summary>
 
-- Qt 5.x with MSVC kit
-- OpenSSL (install via `choco install openssl` or download from [slproweb.com](https://slproweb.com/products/Win32OpenSSL.html))
-- Set environment variable: `OPENSSL_DIR=C:\Program Files\OpenSSL-Win64`
+- Qt 6.8+ with MSVC kit (via [online installer](https://www.qt.io/download-qt-installer))
+- CMake (via [cmake.org](https://cmake.org/download/) or `winget install Kitware.CMake`)
+- vcpkg for OpenSSL: `vcpkg install openssl`
 </details>
 
 ### Build
 
 ```bash
-qmake Qtraktor.pro
-make -j$(nproc)        # Linux
-make -j$(sysctl -n hw.ncpu)  # macOS
+# macOS
+cmake -B build -DCMAKE_BUILD_TYPE=Release \
+  -DOPENSSL_ROOT_DIR="$(brew --prefix openssl)"
+cmake --build build -j$(sysctl -n hw.ncpu)
+
+# Linux
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
 ```
 
 On Windows with MSVC:
 
 ```powershell
-qmake.exe Qtraktor.pro
-nmake -f Makefile.Release
+cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release ^
+  -DCMAKE_TOOLCHAIN_FILE=%VCPKG_INSTALLATION_ROOT%\scripts\buildsystems\vcpkg.cmake
+cmake --build build
 ```
 
 ### Run Tests
 
 ```bash
-cd tests
-qmake tests.pro
-make -j$(nproc)
-./tst_qtraktor
+cd build && ctest --output-on-failure
 ```
 
 ## Contributing

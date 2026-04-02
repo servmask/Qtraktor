@@ -12,7 +12,7 @@ parser:
 
 build:
   - changed-files:
-      - any-glob-to-any-file: '*.pro'
+      - any-glob-to-any-file: '**/CMakeLists.txt'
 
 ci:
   - changed-files:

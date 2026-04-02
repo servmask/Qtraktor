@@ -10,7 +10,7 @@
 
 - [ ] PR title follows conventional commit format (`feat:`, `fix:`, `docs:`, etc.)
 - [ ] Code compiles without warnings on at least one platform
-- [ ] Tests pass locally (`cd tests && qmake tests.pro && make && ./tst_qtraktor`)
+- [ ] Tests pass locally (`cmake -B build && cmake --build build && cd build && ctest --output-on-failure`)
 - [ ] New code follows existing style (run `clang-format -i` on changed files)
 - [ ] Added tests for new functionality (if applicable)
 

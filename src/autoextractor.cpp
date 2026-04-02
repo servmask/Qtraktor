@@ -166,7 +166,7 @@ void AutoExtractor::createProgressDialog()
     m_progressBar->setValue(0);
     m_progressBar->setTextVisible(false);
 #ifdef Q_OS_MAC
-    // Qt 5 QProgressBar native rendering is broken on macOS 26+
+    // Custom styling for a compact progress bar on macOS
     m_progressBar->setFixedHeight(8);
     m_progressBar->setStyleSheet("QProgressBar { border: none; border-radius: 4px; background: palette(midlight); }"
                                  "QProgressBar::chunk { border-radius: 4px; background: palette(highlight); }");
