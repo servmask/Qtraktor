@@ -318,11 +318,16 @@ jobs:
           mkdir -p AppDir/usr/share/mime/packages
           cp wpress.xml AppDir/usr/share/mime/packages/
 
-          # Build AppImage
+          # Build AppImage. Pass the GUI plugin (libtraktor-gui.so) as
+          # --library so linuxdeploy-plugin-qt scans it for Qt deps and
+          # bundles Qt6Gui/Widgets/Network. The main executable links
+          # only Qt6::Core + libdl on Linux (CLI works without libGL).
           export QMAKE="$QT_ROOT_DIR/bin/qmake"
           ./linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             --executable build/Traktor \
+            --library build/libtraktor-core.so \
+            --library build/libtraktor-gui.so \
             --desktop-file traktor.desktop \
             --icon-file icons/traktor.png \
             --plugin qt \

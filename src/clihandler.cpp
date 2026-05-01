@@ -1,6 +1,8 @@
 #include "clihandler.h"
 #include "backupfile.h"
 #include "cryptoutils.h"
+#include "installcli.h"
+#include "mcpserver.h"
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QDir>
@@ -9,6 +11,8 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QString>
+#include <QStringList>
 #include <cstdio>
 
 #ifdef Q_OS_WIN
@@ -483,5 +487,225 @@ int cmdVerify(int /*argc*/, char * /*argv*/[])
     if (!allPassed) {
         return 4;
     }
+    return 0;
+}
+
+// ── global help ─────────────────────────────────────────────────────────────
+
+void printGlobalHelp()
+{
+    fprintf(stdout, "Qtraktor - All-in-One WP Migration and Backup extractor\n"
+                    "\n"
+                    "Usage: traktor <command> [options] <archive>\n"
+                    "\n"
+                    "Commands:\n"
+                    "  list        List contents of a .wpress archive\n"
+                    "  info        Show archive metadata (format, encryption, file count)\n"
+                    "  extract     Extract all files from a .wpress archive\n"
+                    "  cat         Stream a single file from an archive to stdout\n"
+                    "  verify      Verify archive integrity (CRC32)\n"
+                    "  mcp         Start MCP server for AI agent integration\n"
+                    "  install-cli Install command-line tool to system PATH (macOS)\n"
+                    "  uninstall   Remove CLI, AI agent integrations, and settings\n"
+                    "\n"
+                    "Global options:\n"
+                    "  -p, --password <pw>   Password for encrypted archives\n"
+                    "                        (or set TRAKTOR_PASSWORD environment variable)\n"
+                    "  --json                Machine-readable JSON output\n"
+                    "  -q, --quiet           Suppress progress output\n"
+                    "  -h, --help            Show this help\n"
+                    "  -v, --version         Show version\n"
+                    "\n"
+#ifdef __linux__
+                    "Linux GUI options:\n"
+                    "  --gui                 Force GUI mode (fail loudly if GUI libs missing)\n"
+                    "  --cli, --no-gui       Force CLI mode (skip GUI auto-detect)\n"
+                    "\n"
+#endif
+                    "Legacy mode:\n"
+                    "  traktor --source <file> --destination <dir> [-p password]\n"
+                    "\n"
+                    "Exit codes:\n"
+                    "  0  Success\n"
+                    "  1  General error (I/O, permissions, usage)\n"
+                    "  2  Invalid or corrupted archive\n"
+                    "  3  Wrong or missing password\n"
+                    "  4  CRC32 verification failure\n"
+                    "\n"
+                    "Examples:\n"
+                    "  traktor list backup.wpress\n"
+                    "  traktor list --json backup.wpress | jq '.path'\n"
+                    "  traktor cat backup.wpress wp-config.php | grep DB_PASSWORD\n"
+                    "  traktor verify --json backup.wpress\n"
+                    "  traktor extract backup.wpress ./output/\n");
+    fflush(stdout);
+}
+
+// ── subcommand dispatch ─────────────────────────────────────────────────────
+
+int dispatchCliSubcommand(int argc, char *argv[], bool *handled)
+{
+    *handled = false;
+    if (argc < 2) {
+        return 0;
+    }
+
+    const QString sub = QString::fromLocal8Bit(argv[1]);
+
+    auto run = [&](auto fn) {
+        QCoreApplication app(argc, argv);
+        QCoreApplication::setApplicationName("traktor");
+        return fn();
+    };
+
+    if (sub == "list") {
+        *handled = true;
+        return run([&] { return cmdList(argc, argv); });
+    }
+    if (sub == "info") {
+        *handled = true;
+        return run([&] { return cmdInfo(argc, argv); });
+    }
+    if (sub == "extract") {
+        *handled = true;
+        return run([&] { return cmdExtract(argc, argv); });
+    }
+    if (sub == "cat") {
+        *handled = true;
+        return run([&] { return cmdCat(argc, argv); });
+    }
+    if (sub == "verify") {
+        *handled = true;
+        return run([&] { return cmdVerify(argc, argv); });
+    }
+    if (sub == "mcp") {
+        *handled = true;
+        return run([&] { return cmdMcp(); });
+    }
+    if (sub == "install-cli") {
+        *handled = true;
+        return run([&] { return cmdInstallCli(); });
+    }
+    if (sub == "uninstall") {
+        *handled = true;
+        return run([&] { return cmdUninstall(); });
+    }
+
+    return 0;
+}
+
+// ── legacy --source / --destination extract ─────────────────────────────────
+
+static void printLegacyProgress(float percent)
+{
+    int filled = static_cast<int>(percent / 5.0f);
+    fprintf(stdout, "\r[");
+    for (int i = 0; i < 20; i++)
+        fputc(i < filled ? '#' : ' ', stdout);
+    fprintf(stdout, "] %3d%%", static_cast<int>(percent));
+    fflush(stdout);
+}
+
+int cmdLegacyExtract(int argc, char *argv[])
+{
+    QCoreApplication app(argc, argv);
+    QCoreApplication::setApplicationName("traktor");
+
+    QCommandLineParser parser;
+    parser.setApplicationDescription("Qtraktor - legacy CLI extract mode");
+    parser.addHelpOption();
+
+    QCommandLineOption sourceOption(QStringList() << "s" << "source", "Backup file to open (.wpress)", "source");
+    parser.addOption(sourceOption);
+    QCommandLineOption destinationOption(QStringList() << "d" << "destination", "Directory to extract the backup into",
+                                         "destination");
+    parser.addOption(destinationOption);
+    QCommandLineOption passwordOption(QStringList() << "p" << "password", "Password for encrypted backup", "password");
+    parser.addOption(passwordOption);
+
+    parser.process(app);
+
+    const QString source = parser.value(sourceOption);
+    const QString destination = parser.value(destinationOption);
+    const QString password = parser.value(passwordOption);
+
+    if (source.isEmpty() || destination.isEmpty()) {
+        fprintf(stderr, "Error: legacy mode requires both --source and --destination\n");
+        return 1;
+    }
+
+    QFileInfo fileInfo(source);
+    if (!fileInfo.isReadable()) {
+        fprintf(stderr, "Error: cannot read file: %s\n", source.toLocal8Bit().constData());
+        return 1;
+    }
+
+    QDir extractTo(destination + "/" + fileInfo.baseName());
+    if (!QDir().mkpath(extractTo.path())) {
+        fprintf(stderr, "Error: cannot create directory: %s\n", extractTo.path().toLocal8Bit().constData());
+        return 1;
+    }
+
+    BackupFile configChecker(source);
+    bool needsPassword = false;
+    CompressionType compressionType = COMPRESSION_NONE;
+
+    if (configChecker.open(QIODevice::ReadOnly)) {
+        if (configChecker.isValid()) {
+            needsPassword = configChecker.isEncryptedFile();
+            compressionType = configChecker.getCompressionType();
+        }
+        configChecker.close();
+    }
+
+    QString filePassword = password;
+    if (filePassword.isEmpty())
+        filePassword = qEnvironmentVariable("TRAKTOR_PASSWORD");
+    if (needsPassword && filePassword.isEmpty()) {
+        fprintf(stderr, "Error: backup is encrypted - provide a password with -p\n");
+        extractTo.removeRecursively();
+        return 1;
+    }
+
+    BackupFile backupFile(source, filePassword);
+    if (!backupFile.open(QIODevice::ReadOnly)) {
+        fprintf(stderr, "Error: cannot open file: %s\n", source.toLocal8Bit().constData());
+        extractTo.removeRecursively();
+        return 1;
+    }
+    backupFile.setConfig(needsPassword, compressionType);
+
+    if (!backupFile.isValid()) {
+        fprintf(stderr, "Error: backup file is corrupted (missing end-of-file marker)\n");
+        backupFile.close();
+        extractTo.removeRecursively();
+        return 1;
+    }
+
+    fprintf(stdout, "File : %s\n", fileInfo.fileName().toLocal8Bit().constData());
+    fprintf(stdout, "To   : %s\n", extractTo.path().toLocal8Bit().constData());
+    fflush(stdout);
+
+    QObject::connect(&backupFile, &BackupFile::progress, printLegacyProgress);
+
+    QObject::connect(&backupFile, &BackupFile::error, [](const QString &msg) {
+        fprintf(stderr, "\nError: %s\n", msg.toLocal8Bit().constData());
+        fflush(stderr);
+    });
+
+    const bool ok = backupFile.extract(extractTo);
+    backupFile.close();
+
+    fprintf(stdout, "\n");
+    fflush(stdout);
+
+    if (!ok) {
+        fprintf(stderr, "Extraction failed.\n");
+        extractTo.removeRecursively();
+        return 1;
+    }
+
+    fprintf(stdout, "Done. Extracted to: %s\n", extractTo.path().toLocal8Bit().constData());
+    fflush(stdout);
     return 0;
 }

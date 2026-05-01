@@ -1,35 +1,72 @@
-#include "mainwindow.h"
-#include "appdelegate.h"
-#include "autoextractor.h"
-#include "backupfile.h"
+// Traktor entry point.
+//
+// All platforms: argv[1] subcommand dispatch routes list/info/extract/
+// cat/verify/mcp/install-cli/uninstall through QCoreApplication. --help
+// and --version are intercepted before any Q*Application is constructed
+// so the loader never has to resolve QtGui / libGL just to print help.
+//
+// Linux: this file links only Qt6::Core. The GUI lives in
+// libtraktor-gui.so which we dlopen() at runtime when the user wants
+// it (and the system can support it). On a minimal container (no
+// $DISPLAY, no libGL) the binary stays in CLI mode.
+//
+// macOS / Windows: the GUI runs inline below under #ifndef __linux__.
+// No dlopen, no plugin — the executable links Qt6::Widgets directly,
+// exactly as it always has.
+
 #include "clihandler.h"
-#include "dockprogress.h"
-#include "extractionworker.h"
-#include "installcli.h"
-#include "mcpserver.h"
-#include <QApplication>
-#include <QCommandLineParser>
-#include <QCoreApplication>
-#include <QFileInfo>
-#include <QDir>
-#include <QFileOpenEvent>
-#include <QLocalSocket>
-#include <QTimer>
+#include <QString>
 #include <cstdio>
+#include <cstring>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
 
-static void attachConsole()
+// Windows builds use the console subsystem so CLI subcommands (--help,
+// list, extract, ...) print reliably to any shell. The cost is that a
+// console window is allocated when launching from Explorer. Hide it (only
+// if we own the console — never the inherited terminal of cmd / PowerShell
+// / Windows Terminal) and detach before the GUI event loop starts so the
+// GUI looks clean. No-op on macOS/Linux.
+static void detachFromConsole()
 {
 #ifdef Q_OS_WIN
-    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
-        freopen("CONOUT$", "w", stdout);
-        freopen("CONOUT$", "w", stderr);
+    HWND console = GetConsoleWindow();
+    if (console) {
+        DWORD consolePid = 0;
+        GetWindowThreadProcessId(console, &consolePid);
+        if (consolePid == GetCurrentProcessId())
+            ShowWindow(console, SW_HIDE);
     }
+    FreeConsole();
 #endif
 }
+
+#ifdef __linux__
+#include <dlfcn.h>
+#include <linux/limits.h>
+#include <unistd.h>
+#include <cstdlib>
+#include <initializer_list>
+#include <QDir>
+#include <QFileInfo>
+#endif
+
+#ifndef __linux__
+#include "appdelegate.h"
+#include "autoextractor.h"
+#include "backupfile.h"
+#include "dockprogress.h"
+#include "extractionworker.h"
+#include "mainwindow.h"
+#include <QApplication>
+#include <QCommandLineParser>
+#include <QDir>
+#include <QFileInfo>
+#include <QFileOpenEvent>
+#include <QLocalSocket>
+#include <QTimer>
 
 static void printProgress(float percent)
 {
@@ -41,56 +78,181 @@ static void printProgress(float percent)
     fflush(stdout);
 }
 
-static void printGlobalHelp()
+static int runGuiInline(int argc, char **argv);
+#endif // !__linux__
+
+#ifdef __linux__
+
+static bool hasFlag(int argc, char **argv, const char *name)
 {
-    fprintf(stdout, "Qtraktor - All-in-One WP Migration and Backup extractor\n"
-                    "\n"
-                    "Usage: traktor <command> [options] <archive>\n"
-                    "\n"
-                    "Commands:\n"
-                    "  list        List contents of a .wpress archive\n"
-                    "  info        Show archive metadata (format, encryption, file count)\n"
-                    "  extract     Extract all files from a .wpress archive\n"
-                    "  cat         Stream a single file from an archive to stdout\n"
-                    "  verify      Verify archive integrity (CRC32)\n"
-                    "  mcp         Start MCP server for AI agent integration\n"
-                    "  install-cli Install command-line tool to system PATH (macOS)\n"
-                    "  uninstall   Remove CLI, AI agent integrations, and settings\n"
-                    "\n"
-                    "Global options:\n"
-                    "  -p, --password <pw>   Password for encrypted archives\n"
-                    "                        (or set TRAKTOR_PASSWORD environment variable)\n"
-                    "  --json                Machine-readable JSON output\n"
-                    "  -q, --quiet           Suppress progress output\n"
-                    "  -h, --help            Show this help\n"
-                    "  -v, --version         Show version\n"
-                    "\n"
-                    "Legacy mode:\n"
-                    "  traktor --source <file> --destination <dir> [-p password]\n"
-                    "\n"
-                    "Exit codes:\n"
-                    "  0  Success\n"
-                    "  1  General error (I/O, permissions, usage)\n"
-                    "  2  Invalid or corrupted archive\n"
-                    "  3  Wrong or missing password\n"
-                    "  4  CRC32 verification failure\n"
-                    "\n"
-                    "Examples:\n"
-                    "  traktor list backup.wpress\n"
-                    "  traktor list --json backup.wpress | jq '.path'\n"
-                    "  traktor cat backup.wpress wp-config.php | grep DB_PASSWORD\n"
-                    "  traktor verify --json backup.wpress\n"
-                    "  traktor extract backup.wpress ./output/\n");
-    fflush(stdout);
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], name) == 0)
+            return true;
+    }
+    return false;
 }
+
+// Strip the named flags from argv in-place. Argument vector is shrunk,
+// argc updated. We never touch argv[0]. Used so QCommandLineParser
+// downstream (in run_gui or cmdLegacyExtract) doesn't reject --gui /
+// --cli / --no-gui as unknown options.
+static void stripFlags(int *argc, char **argv, std::initializer_list<const char *> flags)
+{
+    int w = 1;
+    for (int r = 1; r < *argc; ++r) {
+        bool drop = false;
+        for (const char *f : flags) {
+            if (std::strcmp(argv[r], f) == 0) {
+                drop = true;
+                break;
+            }
+        }
+        if (!drop) {
+            argv[w++] = argv[r];
+        }
+    }
+    for (int i = w; i < *argc; ++i) {
+        argv[i] = nullptr;
+    }
+    *argc = w;
+}
+
+// Resolve absolute path to libtraktor-gui.so. We compute it from
+// /proc/self/exe so LD_LIBRARY_PATH / cwd don't matter. Try the
+// installed layout (../lib) first, then the build-tree layout (next to
+// the executable).
+static QString resolveGuiPluginPath(QString *errorOut)
+{
+    char buf[PATH_MAX];
+    ssize_t n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    if (n <= 0) {
+        if (errorOut)
+            *errorOut = QStringLiteral("cannot read /proc/self/exe");
+        return QString();
+    }
+    buf[n] = '\0';
+    QFileInfo exe(QString::fromLocal8Bit(buf));
+    QDir d = exe.absoluteDir();
+    const char *candidates[] = {"../lib/libtraktor-gui.so", "libtraktor-gui.so"};
+    for (const char *rel : candidates) {
+        QString p = QDir::cleanPath(d.absoluteFilePath(QString::fromLatin1(rel)));
+        if (QFileInfo::exists(p))
+            return p;
+    }
+    if (errorOut)
+        *errorOut = QStringLiteral("libtraktor-gui.so not found next to executable");
+    return QString();
+}
+
+static int runGuiPlugin(int argc, char **argv, bool loudOnFail)
+{
+    QString err;
+    QString path = resolveGuiPluginPath(&err);
+    if (path.isEmpty()) {
+        if (loudOnFail)
+            std::fprintf(stderr, "traktor: %s\n", qPrintable(err));
+        return 1;
+    }
+    void *h = ::dlopen(path.toLocal8Bit().constData(), RTLD_NOW);
+    if (!h) {
+        if (loudOnFail)
+            std::fprintf(stderr, "traktor: cannot load GUI plugin: %s\n", ::dlerror());
+        return 1;
+    }
+    using RunGuiFn = int (*)(int, char **);
+    auto fn = reinterpret_cast<RunGuiFn>(::dlsym(h, "run_gui"));
+    if (!fn) {
+        if (loudOnFail)
+            std::fprintf(stderr, "traktor: GUI plugin missing run_gui symbol: %s\n", ::dlerror());
+        ::dlclose(h);
+        return 1;
+    }
+    return fn(argc, argv);
+}
+
+// Probe whether GUI mode is viable. Returns true and leaves whyOut
+// empty on success; returns false and writes a short reason on
+// failure. We dlclose what we open here — runGuiPlugin re-opens for
+// the real run.
+static bool guiProbeOk(QString *whyOut)
+{
+    if (!std::getenv("DISPLAY") && !std::getenv("WAYLAND_DISPLAY")) {
+        if (whyOut)
+            *whyOut = QStringLiteral("no display server (DISPLAY/WAYLAND_DISPLAY unset)");
+        return false;
+    }
+    void *gl = ::dlopen("libGL.so.1", RTLD_LAZY);
+    if (!gl) {
+        if (whyOut)
+            *whyOut = QStringLiteral("libGL.so.1 not loadable");
+        return false;
+    }
+    QString perr;
+    QString path = resolveGuiPluginPath(&perr);
+    if (path.isEmpty()) {
+        ::dlclose(gl);
+        if (whyOut)
+            *whyOut = perr;
+        return false;
+    }
+    void *gui = ::dlopen(path.toLocal8Bit().constData(), RTLD_NOW);
+    if (!gui) {
+        if (whyOut)
+            *whyOut = QString::fromLatin1("GUI plugin probe failed: %1").arg(QString::fromLocal8Bit(::dlerror()));
+        ::dlclose(gl);
+        return false;
+    }
+    ::dlclose(gui);
+    ::dlclose(gl);
+    return true;
+}
+
+// CLI-mode fallback: if --source/--destination were passed, run the
+// legacy extract; otherwise print the global help. Exit codes match
+// the legacy behavior.
+static int runCliFallback(int argc, char **argv)
+{
+    bool hasSrc = false, hasDst = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "-s") == 0 || std::strcmp(argv[i], "--source") == 0 ||
+            std::strncmp(argv[i], "--source=", 9) == 0)
+            hasSrc = true;
+        if (std::strcmp(argv[i], "-d") == 0 || std::strcmp(argv[i], "--destination") == 0 ||
+            std::strncmp(argv[i], "--destination=", 14) == 0)
+            hasDst = true;
+    }
+    if (hasSrc && hasDst)
+        return cmdLegacyExtract(argc, argv);
+    printGlobalHelp();
+    return 0;
+}
+
+#endif // __linux__
 
 int main(int argc, char *argv[])
 {
-    // ── Two-phase init ─────────────────────────────────────────────────────
-    // Detect subcommand or --help from raw argv BEFORE creating any Qt
-    // application object. CLI subcommands use QCoreApplication (no display
-    // server needed). QCoreApplication is a singleton — the CLI path never
-    // creates QApplication. No event loop (exec()) in CLI path.
+#ifdef __linux__
+    // Detect and strip Linux GUI/CLI flags BEFORE the all-platforms subcommand
+    // dispatch so:
+    //   (a) `traktor list --gui backup.wpress` doesn't choke cmdList's
+    //       QCommandLineParser with "Unknown option: gui",
+    //   (b) `traktor --gui --help` resolves to printGlobalHelp() instead of
+    //       Qt's auto-generated mini-help inside run_gui.
+    bool forceGui = hasFlag(argc, argv, "--gui");
+    bool forceCli = hasFlag(argc, argv, "--cli") || hasFlag(argc, argv, "--no-gui");
+
+    if (forceGui && forceCli) {
+        std::fprintf(stderr, "traktor: --gui and --cli are mutually exclusive\n");
+        return 1;
+    }
+
+    stripFlags(&argc, argv, {"--gui", "--cli", "--no-gui"});
+#endif
+
+    // ── Subcommand dispatch (all platforms) ────────────────────────────────
+    // Detect subcommand or --help/--version from raw argv BEFORE creating
+    // any Q*Application. CLI subcommands use QCoreApplication only — they
+    // never construct QApplication and never need a display server.
     if (argc >= 2) {
         const QString sub = QString::fromLocal8Bit(argv[1]);
 
@@ -100,42 +262,50 @@ int main(int argc, char *argv[])
             printGlobalHelp();
             return 0;
         }
+        if (sub == "--version" || sub == "-v") {
+#ifdef PROJECT_VERSION_STR
+            std::printf("Traktor %s\n", PROJECT_VERSION_STR);
+#else
+            std::printf("Traktor (unknown version)\n");
+#endif
+            return 0;
+        }
 
-        if (sub == "list") {
-            QCoreApplication app(argc, argv);
-            return cmdList(argc, argv);
-        }
-        if (sub == "info") {
-            QCoreApplication app(argc, argv);
-            return cmdInfo(argc, argv);
-        }
-        if (sub == "extract") {
-            QCoreApplication app(argc, argv);
-            return cmdExtract(argc, argv);
-        }
-        if (sub == "cat") {
-            QCoreApplication app(argc, argv);
-            return cmdCat(argc, argv);
-        }
-        if (sub == "verify") {
-            QCoreApplication app(argc, argv);
-            return cmdVerify(argc, argv);
-        }
-        if (sub == "mcp") {
-            QCoreApplication app(argc, argv);
-            return cmdMcp();
-        }
-        if (sub == "install-cli") {
-            QCoreApplication app(argc, argv);
-            return cmdInstallCli();
-        }
-        if (sub == "uninstall") {
-            QCoreApplication app(argc, argv);
-            return cmdUninstall();
-        }
+        bool handled = false;
+        int rc = dispatchCliSubcommand(argc, argv, &handled);
+        if (handled)
+            return rc;
     }
 
-    // ── GUI / auto-extract path (existing, unchanged) ──────────────────────
+#ifdef __linux__
+    // ── Linux: hybrid CLI/GUI dispatch ─────────────────────────────────────
+    if (forceCli)
+        return runCliFallback(argc, argv);
+
+    if (forceGui)
+        return runGuiPlugin(argc, argv, /*loudOnFail=*/true);
+
+    QString why;
+    if (!guiProbeOk(&why)) {
+        std::fprintf(stderr,
+                     "traktor: GUI unavailable (%s); running in CLI mode. "
+                     "Re-run with --gui to see the specific error.\n",
+                     qPrintable(why));
+        return runCliFallback(argc, argv);
+    }
+    return runGuiPlugin(argc, argv, /*loudOnFail=*/true);
+#else
+    return runGuiInline(argc, argv);
+#endif
+}
+
+#ifndef __linux__
+// ── macOS / Windows GUI path (unchanged from pre-split main.cpp) ──────────
+// QApplication, MainWindow, AutoExtractor, the macOS FileOpen startup
+// window, and the legacy --source/--destination CLI extraction (which on
+// macOS/Windows runs inside QApplication for parity with prior releases).
+static int runGuiInline(int argc, char **argv)
+{
     QApplication a(argc, argv);
 
     // Register Traktor as the default handler for .wpress files
@@ -170,8 +340,6 @@ int main(int argc, char *argv[])
 
     // ── CLI mode ────────────────────────────────────────────────────────────
     if (!source.isEmpty() && !destination.isEmpty()) {
-        attachConsole();
-
         QFileInfo fileInfo(source);
         if (!fileInfo.isReadable()) {
             fprintf(stderr, "Error: cannot read file: %s\n", source.toLocal8Bit().constData());
@@ -179,7 +347,7 @@ int main(int argc, char *argv[])
         }
 
         QDir extractTo(destination + "/" + fileInfo.baseName());
-        if (!QDir().mkdir(extractTo.path())) {
+        if (!QDir().mkpath(extractTo.path())) {
             fprintf(stderr, "Error: cannot create directory: %s\n", extractTo.path().toLocal8Bit().constData());
             return 1;
         }
@@ -198,6 +366,8 @@ int main(int argc, char *argv[])
         }
 
         QString filePassword = password;
+        if (filePassword.isEmpty())
+            filePassword = qEnvironmentVariable("TRAKTOR_PASSWORD");
         if (needsPassword && filePassword.isEmpty()) {
             fprintf(stderr, "Error: backup is encrypted – provide a password with -p\n");
             extractTo.removeRecursively();
@@ -246,6 +416,12 @@ int main(int argc, char *argv[])
         fflush(stdout);
         return 0;
     }
+
+    // Past the CLI-only paths — we're going to QApplication::exec() one way
+    // or another (auto-extract, GUI with --source, or bare GUI). On Windows,
+    // drop the console window allocated for the console-subsystem binary so
+    // the GUI launch doesn't leave an empty cmd window behind.
+    detachFromConsole();
 
     // ── Auto-extract mode ──────────────────────────────────────────────────
     // Positional args without --source/--destination flags = double-click / file association
@@ -340,3 +516,4 @@ int main(int argc, char *argv[])
 
     return QApplication::exec();
 }
+#endif // !__linux__

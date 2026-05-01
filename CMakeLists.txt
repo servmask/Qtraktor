@@ -31,6 +31,8 @@ if(NOT MSVC)
 else()
     target_compile_options(bzip2 PRIVATE /w)
 endif()
+# Linux SHARED libraries (libtraktor-core.so) link bzip2; needs PIC.
+set_target_properties(bzip2 PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Application sources
 set(APP_SOURCES
@@ -79,19 +81,121 @@ else()
     list(APPEND APP_SOURCES src/dockprogress_stub.cpp)
 endif()
 
-qt_add_executable(Traktor ${APP_SOURCES} ${APP_HEADERS} ${APP_FORMS})
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # ── Hybrid CLI/GUI build (Linux only) ──────────────────────────────────
+    # The executable links Qt6::Core only — no libGL, no QtGui, no
+    # QtWidgets in DT_NEEDED. The GUI lives in libtraktor-gui.so which
+    # main.cpp dlopen()s at runtime when probes for $DISPLAY, libGL.so.1
+    # and the plugin itself succeed. On a minimal container the binary
+    # stays in CLI mode (no loader errors before main() runs).
+    #
+    # Layout:
+    #   bin/Traktor              executable (only Qt6::Core + libdl)
+    #   lib/libtraktor-core.so   shared core (BackupFile, CLI handlers, MCP, ...)
+    #   lib/libtraktor-gui.so    dlopen'd GUI plugin (Widgets, MainWindow, ...)
+    set(CORE_SOURCES
+        src/backupfile.cpp
+        src/cryptoutils.cpp
+        src/extractionworker.cpp
+        src/clihandler.cpp
+        src/mcpserver.cpp
+        src/installcli.cpp
+        src/agentconfig.cpp
+    )
+    set(CORE_HEADERS
+        src/backupfile.h
+        src/cryptoutils.h
+        src/extractionworker.h
+        src/clihandler.h
+        src/mcpserver.h
+        src/installcli.h
+        src/agentconfig.h
+    )
+    add_library(traktor-core SHARED ${CORE_SOURCES} ${CORE_HEADERS})
+    target_include_directories(traktor-core PUBLIC src)
+    target_link_libraries(traktor-core PUBLIC
+        Qt6::Core
+        OpenSSL::SSL
+        OpenSSL::Crypto
+        ZLIB::ZLIB
+        bzip2
+    )
+    set_target_properties(traktor-core PROPERTIES
+        OUTPUT_NAME "traktor-core"
+        BUILD_RPATH "$ORIGIN"
+        INSTALL_RPATH "$ORIGIN"
+    )
 
-target_include_directories(Traktor PRIVATE src)
+    set(GUI_SOURCES
+        src/mainwindow.cpp
+        src/setupdialog.cpp
+        src/passworddialog.cpp
+        src/autoextractor.cpp
+        src/progresswindow.cpp
+        src/dropoverlay.cpp
+        src/appdelegate.cpp
+        src/dockprogress_stub.cpp
+        src/gui_entry.cpp
+    )
+    set(GUI_HEADERS
+        src/mainwindow.h
+        src/setupdialog.h
+        src/passworddialog.h
+        src/autoextractor.h
+        src/progresswindow.h
+        src/dropoverlay.h
+        src/appdelegate.h
+        src/dockprogress.h
+    )
+    qt_add_library(traktor-gui SHARED
+        ${GUI_SOURCES} ${GUI_HEADERS} src/mainwindow.ui
+    )
+    target_link_libraries(traktor-gui PRIVATE
+        traktor-core
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+    )
+    set_target_properties(traktor-gui PROPERTIES
+        OUTPUT_NAME "traktor-gui"
+        BUILD_RPATH "$ORIGIN"
+        INSTALL_RPATH "$ORIGIN"
+    )
 
-target_link_libraries(Traktor PRIVATE
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Widgets
-    Qt6::Network
-    OpenSSL::SSL
-    OpenSSL::Crypto
-    ZLIB::ZLIB
-    bzip2
+    add_executable(Traktor src/main.cpp)
+    target_link_libraries(Traktor PRIVATE
+        traktor-core
+        ${CMAKE_DL_LIBS}
+    )
+    # $ORIGIN = build dir (libs side-by-side); $ORIGIN/../lib = installed layout.
+    set_target_properties(Traktor PROPERTIES
+        BUILD_RPATH "$ORIGIN;$ORIGIN/../lib"
+        INSTALL_RPATH "$ORIGIN/../lib"
+    )
+
+    install(TARGETS Traktor RUNTIME DESTINATION bin)
+    install(TARGETS traktor-core traktor-gui LIBRARY DESTINATION lib)
+else()
+    qt_add_executable(Traktor ${APP_SOURCES} ${APP_HEADERS} ${APP_FORMS})
+
+    target_include_directories(Traktor PRIVATE src)
+
+    target_link_libraries(Traktor PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+        OpenSSL::SSL
+        OpenSSL::Crypto
+        ZLIB::ZLIB
+        bzip2
+    )
+endif()
+
+# Project version is consumed by main.cpp's --version handler on every platform.
+target_compile_definitions(Traktor PRIVATE
+    PROJECT_VERSION_STR="${PROJECT_VERSION}"
 )
 
 # macOS bundle configuration
@@ -123,7 +227,10 @@ endif()
 
 # Windows configuration
 if(WIN32)
-    set_target_properties(Traktor PROPERTIES WIN32_EXECUTABLE TRUE)
+    # Console subsystem (WIN32_EXECUTABLE FALSE) so CLI subcommands print
+    # reliably to any shell. main.cpp hides and detaches the console
+    # before the GUI event loop starts so GUI launches still look clean.
+    set_target_properties(Traktor PROPERTIES WIN32_EXECUTABLE FALSE)
     target_sources(Traktor PRIVATE icons/traktor.rc)
 endif()
 
