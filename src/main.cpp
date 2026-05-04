@@ -32,14 +32,17 @@
 static void detachFromConsole()
 {
 #ifdef Q_OS_WIN
-    HWND console = GetConsoleWindow();
-    if (console) {
-        DWORD consolePid = 0;
-        GetWindowThreadProcessId(console, &consolePid);
-        if (consolePid == GetCurrentProcessId())
+    // GetWindowThreadProcessId(GetConsoleWindow(), ...) returns the PID of
+    // conhost.exe (the out-of-process console host), not our PID — so a
+    // self-ownership check is always false. The documented idiom is
+    // GetConsoleProcessList: a count of 1 means we are the sole attachee,
+    // i.e. Windows allocated this console for us at launch (Explorer flow).
+    // A count > 1 means we inherited the user's terminal — leave it alone.
+    if (GetConsoleProcessList(nullptr, 0) == 1) {
+        if (HWND console = GetConsoleWindow())
             ShowWindow(console, SW_HIDE);
+        FreeConsole();
     }
-    FreeConsole();
 #endif
 }
 
@@ -347,10 +350,19 @@ static int runGuiInline(int argc, char **argv)
         }
 
         QDir extractTo(destination + "/" + fileInfo.baseName());
+        // mkpath() returns true when the directory already exists, so on
+        // error paths we must only removeRecursively() the dir if WE created
+        // it — otherwise we'd silently wipe a user's pre-existing directory
+        // (e.g. a prior successful extraction at the same destination).
+        const bool dirPreExisted = QFileInfo::exists(extractTo.path());
         if (!QDir().mkpath(extractTo.path())) {
             fprintf(stderr, "Error: cannot create directory: %s\n", extractTo.path().toLocal8Bit().constData());
             return 1;
         }
+        auto cleanupIfCreated = [&] {
+            if (!dirPreExisted)
+                extractTo.removeRecursively();
+        };
 
         // Read config header to detect encryption / compression
         BackupFile configChecker(source);
@@ -370,14 +382,14 @@ static int runGuiInline(int argc, char **argv)
             filePassword = qEnvironmentVariable("TRAKTOR_PASSWORD");
         if (needsPassword && filePassword.isEmpty()) {
             fprintf(stderr, "Error: backup is encrypted – provide a password with -p\n");
-            extractTo.removeRecursively();
+            cleanupIfCreated();
             return 1;
         }
 
         BackupFile backupFile(source, filePassword);
         if (!backupFile.open(QIODevice::ReadOnly)) {
             fprintf(stderr, "Error: cannot open file: %s\n", source.toLocal8Bit().constData());
-            extractTo.removeRecursively();
+            cleanupIfCreated();
             return 1;
         }
         backupFile.setConfig(needsPassword, compressionType);
@@ -385,7 +397,7 @@ static int runGuiInline(int argc, char **argv)
         if (!backupFile.isValid()) {
             fprintf(stderr, "Error: backup file is corrupted (missing end-of-file marker)\n");
             backupFile.close();
-            extractTo.removeRecursively();
+            cleanupIfCreated();
             return 1;
         }
 
@@ -408,7 +420,7 @@ static int runGuiInline(int argc, char **argv)
 
         if (!ok) {
             fprintf(stderr, "Extraction failed.\n");
-            extractTo.removeRecursively();
+            cleanupIfCreated();
             return 1;
         }
 

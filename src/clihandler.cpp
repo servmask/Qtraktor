@@ -641,10 +641,19 @@ int cmdLegacyExtract(int argc, char *argv[])
     }
 
     QDir extractTo(destination + "/" + fileInfo.baseName());
+    // mkpath() returns true when the directory already exists, so on error
+    // paths we must only removeRecursively() the dir if WE created it —
+    // otherwise we'd silently wipe a user's pre-existing directory (e.g. a
+    // prior successful extraction at the same destination).
+    const bool dirPreExisted = QFileInfo::exists(extractTo.path());
     if (!QDir().mkpath(extractTo.path())) {
         fprintf(stderr, "Error: cannot create directory: %s\n", extractTo.path().toLocal8Bit().constData());
         return 1;
     }
+    auto cleanupIfCreated = [&] {
+        if (!dirPreExisted)
+            extractTo.removeRecursively();
+    };
 
     BackupFile configChecker(source);
     bool needsPassword = false;
@@ -663,14 +672,14 @@ int cmdLegacyExtract(int argc, char *argv[])
         filePassword = qEnvironmentVariable("TRAKTOR_PASSWORD");
     if (needsPassword && filePassword.isEmpty()) {
         fprintf(stderr, "Error: backup is encrypted - provide a password with -p\n");
-        extractTo.removeRecursively();
+        cleanupIfCreated();
         return 1;
     }
 
     BackupFile backupFile(source, filePassword);
     if (!backupFile.open(QIODevice::ReadOnly)) {
         fprintf(stderr, "Error: cannot open file: %s\n", source.toLocal8Bit().constData());
-        extractTo.removeRecursively();
+        cleanupIfCreated();
         return 1;
     }
     backupFile.setConfig(needsPassword, compressionType);
@@ -678,7 +687,7 @@ int cmdLegacyExtract(int argc, char *argv[])
     if (!backupFile.isValid()) {
         fprintf(stderr, "Error: backup file is corrupted (missing end-of-file marker)\n");
         backupFile.close();
-        extractTo.removeRecursively();
+        cleanupIfCreated();
         return 1;
     }
 
@@ -701,7 +710,7 @@ int cmdLegacyExtract(int argc, char *argv[])
 
     if (!ok) {
         fprintf(stderr, "Extraction failed.\n");
-        extractTo.removeRecursively();
+        cleanupIfCreated();
         return 1;
     }
 
