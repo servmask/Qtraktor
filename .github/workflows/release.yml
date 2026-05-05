@@ -129,19 +129,79 @@ jobs:
             fi
           done
 
-      - name: Codesign universal app
+      - name: Import signing certs and notarization API key
+        env:
+          APP_P12_B64: ${{ secrets.DEVELOPER_ID_APPLICATION_P12 }}
+          INSTALLER_P12_B64: ${{ secrets.DEVELOPER_ID_INSTALLER_P12 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
         run: |
-          # Sign frameworks and dylibs inside-out before signing the app
+          APP_CERT="$RUNNER_TEMP/app.p12"
+          INSTALLER_CERT="$RUNNER_TEMP/installer.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          API_KEY_PATH="$RUNNER_TEMP/asc_api_key.p8"
+
+          echo -n "$APP_P12_B64" | base64 --decode -o "$APP_CERT"
+          echo -n "$INSTALLER_P12_B64" | base64 --decode -o "$INSTALLER_CERT"
+          echo -n "$ASC_API_KEY_P8" | base64 --decode -o "$API_KEY_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$APP_CERT"       -P "$P12_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security import "$INSTALLER_CERT" -P "$P12_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+
+          security set-key-partition-list -S apple-tool:,apple:,codesign:,productsign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security list-keychains -d user -s "$KEYCHAIN_PATH" \
+            $(security list-keychains -d user | tr -d '"')
+
+          rm -f "$APP_CERT" "$INSTALLER_CERT"
+
+      - name: Codesign universal app (Developer ID + hardened runtime)
+        env:
+          IDENTITY: ${{ secrets.APPLE_DEVELOPER_ID_APP }}
+        run: |
+          # Inside-out: frameworks → dylibs → plugins → main app
           find Universal-Traktor.app/Contents/Frameworks -name "*.framework" -type d | while IFS= read -r fw; do
-            codesign --force --sign - "$fw"
+            codesign --force --options runtime --timestamp --sign "$IDENTITY" "$fw"
           done
           find Universal-Traktor.app/Contents/Frameworks -name "*.dylib" -type f | while IFS= read -r lib; do
-            codesign --force --sign - "$lib"
+            codesign --force --options runtime --timestamp --sign "$IDENTITY" "$lib"
           done
           find Universal-Traktor.app/Contents/PlugIns -type f -name "*.dylib" 2>/dev/null | while IFS= read -r lib; do
-            codesign --force --sign - "$lib"
+            codesign --force --options runtime --timestamp --sign "$IDENTITY" "$lib"
           done
-          codesign --force --sign - Universal-Traktor.app
+
+          # Sign the app bundle last
+          codesign --force --options runtime --timestamp --sign "$IDENTITY" Universal-Traktor.app
+
+          codesign --verify --deep --strict --verbose=2 Universal-Traktor.app
+
+      - name: Notarize and staple .app (Sparkle-ready)
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          # notarytool doesn't accept .app directly — wrap in a zip first
+          ditto -c -k --keepParent Universal-Traktor.app "$RUNNER_TEMP/Traktor.zip"
+
+          xcrun notarytool submit "$RUNNER_TEMP/Traktor.zip" \
+            --key "$RUNNER_TEMP/asc_api_key.p8" \
+            --key-id "$ASC_API_KEY_ID" \
+            --issuer "$ASC_API_ISSUER_ID" \
+            --wait --timeout 30m
+
+          # Staple goes onto the .app itself, not the zip; the zip was just transport
+          xcrun stapler staple Universal-Traktor.app
+          xcrun stapler validate Universal-Traktor.app
+
+          rm -f "$RUNNER_TEMP/Traktor.zip"
 
       - name: Rename app before checkout
         run: mv Universal-Traktor.app /tmp/Traktor.app
@@ -153,6 +213,8 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Build PKG installer
+        env:
+          INSTALLER_IDENTITY: ${{ secrets.APPLE_DEVELOPER_ID_INSTALLER }}
         run: |
           mv /tmp/Traktor.app Traktor.app
 
@@ -178,13 +240,34 @@ jobs:
             --distribution scripts/macos-pkg/distribution.xml \
             --resources scripts/macos-pkg/resources \
             --package-path . \
+            --sign "$INSTALLER_IDENTITY" \
             "Traktor-${{ env.VERSION }}.pkg"
+
+      - name: Notarize and staple PKG
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          xcrun notarytool submit "Traktor-${{ env.VERSION }}.pkg" \
+            --key "$RUNNER_TEMP/asc_api_key.p8" \
+            --key-id "$ASC_API_KEY_ID" \
+            --issuer "$ASC_API_ISSUER_ID" \
+            --wait --timeout 30m
+
+          xcrun stapler staple "Traktor-${{ env.VERSION }}.pkg"
+          xcrun stapler validate "Traktor-${{ env.VERSION }}.pkg"
 
       - name: Upload PKG artifact
         uses: actions/upload-artifact@v4
         with:
           name: Traktor-${{ env.VERSION }}.pkg
           path: Traktor-${{ env.VERSION }}.pkg
+
+      - name: Delete temp keychain and notarization key
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
+          rm -f "$RUNNER_TEMP/asc_api_key.p8"
 
   build-windows:
     runs-on: windows-2022
