@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.1](https://github.com/servmask/Qtraktor/compare/v1.8.0...v1.8.1) (2026-05-05)
+
+
+### Bug Fixes
+
+* remove extra escaping in Homebrew Cask URL template ([#35](https://github.com/servmask/Qtraktor/issues/35)) ([083bfa1](https://github.com/servmask/Qtraktor/commit/083bfa1a823ed4f39928773f7579f69e6fec1a73))
+
+
+### Documentation
+
+* update build instructions from Qt 5/qmake to Qt 6/CMake ([#37](https://github.com/servmask/Qtraktor/issues/37)) ([6fa8bac](https://github.com/servmask/Qtraktor/commit/6fa8bace77e842f115d8007d7e2614419adbf5e8))
+
 ## [1.8.0](https://github.com/servmask/Qtraktor/compare/v1.7.0...v1.8.0) (2026-03-29)
 
 
