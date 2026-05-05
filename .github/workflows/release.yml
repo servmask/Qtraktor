@@ -229,10 +229,17 @@ jobs:
           # Bundle Qt runtime DLLs
           windeployqt build\Traktor.exe
 
-          # Bundle vcpkg DLLs (OpenSSL + zlib)
-          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libssl*.dll" -Destination build\
-          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libcrypto*.dll" -Destination build\
-          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\zlib1.dll" -Destination build\
+          # Bundle vcpkg DLLs (OpenSSL + zlib). Glob names so vcpkg port renames
+          # (e.g. zlib1.dll vs zlib.dll) don't break the bundle; fail loudly if
+          # any pattern matches nothing.
+          $vcpkgBin = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin"
+          Write-Host "vcpkg bin contents:"
+          Get-ChildItem $vcpkgBin | Format-Table Name,Length
+          foreach ($pattern in @("libssl-*.dll", "libcrypto-*.dll", "zlib*.dll")) {
+              $hits = Get-ChildItem $vcpkgBin -Filter $pattern
+              if (-not $hits) { throw "No DLL matched '$pattern' in $vcpkgBin" }
+              $hits | Copy-Item -Destination build\
+          }
 
           # Bundle file type icon for .wpress association
           Copy-Item "icons\file.ico" -Destination build\
