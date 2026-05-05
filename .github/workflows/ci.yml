@@ -253,17 +253,26 @@ jobs:
           Copy-Item build\Traktor.exe -Destination dist\
           windeployqt dist\Traktor.exe
 
-          # Glob the vcpkg DLL names so renames (e.g. zlib1.dll vs zlib.dll across
-          # vcpkg port revisions) don't break the bundle. Fail loudly if a pattern
-          # matches nothing so we don't ship a half-bundled artifact.
+          # Bundle the OpenSSL DLLs from vcpkg. Glob the version suffix
+          # (libssl-3-x64.dll / libcrypto-3-x64.dll today) so port revisions
+          # don't break the bundle. zlib is built as a static archive by
+          # vcpkg's x64-windows triplet and is linked into Traktor.exe, so
+          # there is no zlib DLL to copy.
           $vcpkgBin = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin"
           Write-Host "vcpkg bin contents:"
           Get-ChildItem $vcpkgBin | Format-Table Name,Length
-          foreach ($pattern in @("libssl-*.dll", "libcrypto-*.dll", "zlib*.dll")) {
+          foreach ($pattern in @("libssl-*.dll", "libcrypto-*.dll")) {
               $hits = Get-ChildItem $vcpkgBin -Filter $pattern
               if (-not $hits) { throw "No DLL matched '$pattern' in $vcpkgBin" }
               $hits | Copy-Item -Destination dist\
           }
+
+          # Smoke test: run the bundled exe. If any DLL is missing, the OS
+          # surfaces a non-zero exit and we fail here instead of shipping a
+          # broken artifact. --version routes through main.cpp's CLI path so
+          # no display is needed.
+          & dist\Traktor.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "Bundled Traktor.exe failed smoke test (exit $LASTEXITCODE)" }
 
       - name: Upload build artifact
         if: github.event_name == 'pull_request'
