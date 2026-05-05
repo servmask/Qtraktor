@@ -248,14 +248,20 @@ jobs:
       - name: Bundle app for testing
         if: github.event_name == 'pull_request'
         shell: pwsh
-        run: windeployqt build\Traktor.exe
+        run: |
+          New-Item -ItemType Directory -Path dist -Force
+          Copy-Item build\Traktor.exe -Destination dist\
+          windeployqt dist\Traktor.exe
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libssl*.dll"    -Destination dist\
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libcrypto*.dll" -Destination dist\
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\zlib1.dll"      -Destination dist\
 
       - name: Upload build artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: Traktor-windows-x64
-          path: build\Traktor.exe
+          path: dist
 
   pr-artifacts-comment:
     name: PR Build Artifacts
