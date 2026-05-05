@@ -122,18 +122,18 @@ jobs:
             --plugin qt \
             --output appimage
 
-          mv Traktor-*.AppImage Traktor-x86_64.AppImage
-
           # Smoke test the bundled AppImage. --version routes through the CLI
-          # path so no display is needed.
-          ./Traktor-x86_64.AppImage --version
+          # path so no display is needed. Use whatever filename linuxdeploy
+          # produced (e.g. Traktor-x86_64.AppImage) — no rename needed.
+          appimage=$(ls Traktor-*.AppImage | head -n1)
+          ./"$appimage" --version
 
       - name: Upload build artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: Traktor-linux-x86_64
-          path: Traktor-x86_64.AppImage
+          path: Traktor-*.AppImage
 
   build-test-macos:
     name: Build & Test (macOS)
