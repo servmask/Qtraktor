@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.9.1](https://github.com/servmask/Qtraktor/compare/v1.9.0...v1.9.1) (2026-05-05)
+
+
+* release 1.9.1 ([#43](https://github.com/servmask/Qtraktor/issues/43)) ([0a9f1a3](https://github.com/servmask/Qtraktor/commit/0a9f1a367ffc00a6f7f8d3e8dc1cff57652eb77b))
+
 ## [1.9.0](https://github.com/servmask/Qtraktor/compare/v1.8.0...v1.9.0) (2026-05-05)
 
 
