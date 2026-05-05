@@ -8,7 +8,6 @@ on:
 
 # Dependency installation mirrors release.yml with deliberate simplifications:
 # - Single macOS runner (not universal binary)
-# - Skip libfuse2 on Linux (only needed for AppImage packaging)
 # If release.yml changes deps, update this file too.
 
 jobs:
@@ -73,7 +72,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake libgl1-mesa-dev libssl-dev zlib1g-dev pkg-config
+          sudo apt-get install -y cmake libgl1-mesa-dev libssl-dev zlib1g-dev pkg-config libfuse2
 
       - name: Build
         run: |
@@ -83,15 +82,58 @@ jobs:
       - name: Run tests
         run: cd build && ctest --output-on-failure
 
+      - name: Cache linuxdeploy
+        if: github.event_name == 'pull_request'
+        uses: actions/cache@v4
+        with:
+          path: linuxdeploy*.AppImage
+          key: linuxdeploy-continuous
+
+      - name: Build AppImage
+        if: github.event_name == 'pull_request'
+        run: |
+          [ -f linuxdeploy-x86_64.AppImage ] || wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          [ -f linuxdeploy-plugin-qt-x86_64.AppImage ] || wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy*.AppImage
+
+          cat > traktor.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Name=Traktor
+          Comment=WPRESS Extractor
+          Exec=Traktor %f
+          Icon=traktor
+          Type=Application
+          Categories=Utility;
+          MimeType=application/x-wpress;
+          DESKTOP
+          sed -i 's/^          //' traktor.desktop
+
+          mkdir -p AppDir/usr/share/mime/packages
+          cp wpress.xml AppDir/usr/share/mime/packages/
+
+          export QMAKE="$QT_ROOT_DIR/bin/qmake"
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --executable build/Traktor \
+            --library build/libtraktor-core.so \
+            --library build/libtraktor-gui.so \
+            --desktop-file traktor.desktop \
+            --icon-file icons/traktor.png \
+            --plugin qt \
+            --output appimage
+
+          mv Traktor-*.AppImage Traktor-x86_64.AppImage
+
+          # Smoke test the bundled AppImage. --version routes through the CLI
+          # path so no display is needed.
+          ./Traktor-x86_64.AppImage --version
+
       - name: Upload build artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: Traktor-linux-x86_64
-          path: |
-            build/Traktor
-            build/libtraktor-core.so
-            build/libtraktor-gui.so
+          path: Traktor-x86_64.AppImage
 
   build-test-macos:
     name: Build & Test (macOS)
