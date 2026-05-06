@@ -1,7 +1,9 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include <QApplication>
 #include <QFileDialog>
 #include <QIODevice>
+#include <QIcon>
 #include <QMenuBar>
 #include <QAction>
 #include <QMessageBox>
@@ -17,6 +19,11 @@
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow)
 {
+    // Set the app icon globally so QApplication::windowIcon() returns it
+    // for AboutDialog and any other window that asks. Bundled via the
+    // resources.qrc Qt resource so it works the same on all platforms.
+    qApp->setWindowIcon(QIcon(QStringLiteral(":/icons/traktor.png")));
+
     ui->setupUi(this);
     ui->progressBar->setVisible(false);
     ui->logTextEdit->setVisible(false);

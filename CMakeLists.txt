@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
 
 # macOS deployment target (must be before find_package for proper SDK targeting)
 if(APPLE)
@@ -46,6 +47,7 @@ set(APP_SOURCES
     src/agentconfig.cpp
     src/setupdialog.cpp
     src/passworddialog.cpp
+    src/aboutdialog.cpp
     src/appdelegate.cpp
     src/dropoverlay.cpp
     src/extractionworker.cpp
@@ -63,6 +65,7 @@ set(APP_HEADERS
     src/agentconfig.h
     src/setupdialog.h
     src/passworddialog.h
+    src/aboutdialog.h
     src/appdelegate.h
     src/dropoverlay.h
     src/extractionworker.h
@@ -72,6 +75,7 @@ set(APP_HEADERS
 )
 
 set(APP_FORMS src/mainwindow.ui)
+set(APP_RESOURCES resources.qrc)
 
 # Platform-specific sources
 if(APPLE)
@@ -136,6 +140,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         src/mainwindow.cpp
         src/setupdialog.cpp
         src/passworddialog.cpp
+        src/aboutdialog.cpp
         src/autoextractor.cpp
         src/progresswindow.cpp
         src/dropoverlay.cpp
@@ -147,6 +152,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         src/mainwindow.h
         src/setupdialog.h
         src/passworddialog.h
+        src/aboutdialog.h
         src/autoextractor.h
         src/progresswindow.h
         src/dropoverlay.h
@@ -154,7 +160,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         src/dockprogress.h
     )
     qt_add_library(traktor-gui SHARED
-        ${GUI_SOURCES} ${GUI_HEADERS} src/mainwindow.ui
+        ${GUI_SOURCES} ${GUI_HEADERS} src/mainwindow.ui ${APP_RESOURCES}
     )
     target_link_libraries(traktor-gui PRIVATE
         traktor-core
@@ -183,7 +189,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     install(TARGETS Traktor RUNTIME DESTINATION bin)
     install(TARGETS traktor-core traktor-gui LIBRARY DESTINATION lib)
 else()
-    qt_add_executable(Traktor ${APP_SOURCES} ${APP_HEADERS} ${APP_FORMS})
+    qt_add_executable(Traktor ${APP_SOURCES} ${APP_HEADERS} ${APP_FORMS} ${APP_RESOURCES})
 
     target_include_directories(Traktor PRIVATE src)
 
@@ -199,10 +205,18 @@ else()
     )
 endif()
 
-# Project version is consumed by main.cpp's --version handler on every platform.
+# Project version is consumed by main.cpp's --version handler on every platform,
+# and by AboutDialog on macOS/Windows (where aboutdialog.cpp is in the Traktor
+# target). On Linux, AboutDialog lives in libtraktor-gui.so, so the same macro
+# must be defined for that target too.
 target_compile_definitions(Traktor PRIVATE
     PROJECT_VERSION_STR="${PROJECT_VERSION}"
 )
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_compile_definitions(traktor-gui PRIVATE
+        PROJECT_VERSION_STR="${PROJECT_VERSION}"
+    )
+endif()
 
 # macOS bundle configuration
 if(APPLE)
