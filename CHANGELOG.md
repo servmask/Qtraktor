@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/servmask/Qtraktor/compare/v1.9.1...v1.10.0) (2026-05-06)
+
+
+### Features
+
+* **macos:** in-app auto-update via Sparkle 2 ([#46](https://github.com/servmask/Qtraktor/issues/46)) ([ac34abb](https://github.com/servmask/Qtraktor/commit/ac34abbc6f7be15960bd79fc60b07a19dd0a2aa1))
+
 ## [1.9.1](https://github.com/servmask/Qtraktor/compare/v1.9.0...v1.9.1) (2026-05-05)
 
 
