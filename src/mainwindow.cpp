@@ -15,7 +15,12 @@
 #include "installcli.h"
 #include "passworddialog.h"
 #include "setupdialog.h"
+#include "aboutdialog.h"
 #include "cryptoutils.h"
+
+#ifdef Q_OS_MAC
+#include "updatemanager.h"
+#endif
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow)
 {
@@ -40,6 +45,38 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     toolsMenu->addSeparator();
     QAction *uninstallAction = toolsMenu->addAction(tr("Uninstall Traktor..."));
     connect(uninstallAction, &QAction::triggered, this, &MainWindow::uninstallTraktor);
+
+#ifdef Q_OS_MAC
+    // Sparkle auto-update bridge — macOS only for now (WinSparkle is a
+    // separate workstream). Construction starts Sparkle's scheduled check
+    // loop, reading SUFeedURL and SUPublicEDKey from Info.plist.
+    m_updateManager = new UpdateManager(this);
+
+    // "Check for Updates..." — setMenuRole(ApplicationSpecificRole) tells
+    // Qt to relocate this into the macOS app menu (Traktor → ...). We add
+    // it to the Tools menu but Qt moves it out at runtime on macOS.
+    QAction *checkForUpdatesAction = new QAction(tr("Check for Updates..."), this);
+    checkForUpdatesAction->setMenuRole(QAction::ApplicationSpecificRole);
+    toolsMenu->addAction(checkForUpdatesAction);
+    connect(checkForUpdatesAction, &QAction::triggered, m_updateManager, &UpdateManager::checkForUpdates);
+    checkForUpdatesAction->setEnabled(m_updateManager->canCheckForUpdates());
+    connect(m_updateManager, &UpdateManager::canCheckForUpdatesChanged, this, [this, checkForUpdatesAction] {
+        checkForUpdatesAction->setEnabled(m_updateManager->canCheckForUpdates());
+    });
+#endif
+
+    // "About Traktor" — universal across platforms.
+    // setMenuRole(AboutRole) routes this into the macOS app menu's About
+    // slot; on Windows/Linux it stays in the Tools menu where added.
+    // The dialog itself shows update controls only on macOS (where the
+    // m_updateManager pointer is non-null).
+    QAction *aboutAction = new QAction(tr("About Traktor"), this);
+    aboutAction->setMenuRole(QAction::AboutRole);
+    toolsMenu->addAction(aboutAction);
+    connect(aboutAction, &QAction::triggered, this, [this] {
+        AboutDialog dlg(m_updateManager, this);
+        dlg.exec();
+    });
 
     // First-run setup dialog
     QSettings firstRunSettings("com.servmask", "Traktor");
