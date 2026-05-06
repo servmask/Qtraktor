@@ -209,6 +209,10 @@ if(APPLE)
     set_target_properties(Traktor PROPERTIES
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_BINARY_DIR}/Info.plist
+        # @executable_path/../Frameworks is where Sparkle.framework (and Qt
+        # frameworks once macdeployqt runs) live inside the .app bundle.
+        INSTALL_RPATH "@executable_path/../Frameworks"
+        BUILD_WITH_INSTALL_RPATH TRUE
     )
 
     target_link_libraries(Traktor PRIVATE
@@ -222,6 +226,39 @@ if(APPLE)
     target_sources(Traktor PRIVATE ${ICON_FILES})
     set_source_files_properties(${ICON_FILES} PROPERTIES
         MACOSX_PACKAGE_LOCATION Resources
+    )
+
+    # ── Sparkle auto-update framework ──────────────────────────────────────
+    # Vendored via FetchContent — downloaded at configure time, not committed.
+    # macdeployqt does NOT bundle non-Qt frameworks (per Qt's deployment
+    # docs), so we copy Sparkle.framework into the .app via the POST_BUILD
+    # step below. The existing inside-out codesign loop in release.yml
+    # picks it up automatically once it's in Contents/Frameworks/.
+    include(FetchContent)
+    FetchContent_Declare(Sparkle
+        URL https://github.com/sparkle-project/Sparkle/releases/download/2.9.1/Sparkle-2.9.1.tar.xz
+        URL_HASH SHA256=c0dde519fd2a43ddfc6a1eb76aec284d7d888fe281414f9177de3164d98ba4c7
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(Sparkle)
+
+    target_link_libraries(Traktor PRIVATE
+        "-F${sparkle_SOURCE_DIR}"
+        "-framework Sparkle"
+    )
+
+    # Copy Sparkle.framework into the .app bundle's Contents/Frameworks/
+    # after the binary links. We use `ditto` (not `cmake -E copy_directory`)
+    # because Sparkle.framework relies on symlinks at its top level
+    # (Sparkle -> Versions/Current/Sparkle, Headers -> Versions/Current/Headers,
+    # etc.). `cmake -E copy_directory` dereferences those symlinks, producing
+    # two copies of every binary and breaking codesign with
+    # "bundle format is ambiguous (could be app or framework)".
+    add_custom_command(TARGET Traktor POST_BUILD
+        COMMAND ditto
+                "${sparkle_SOURCE_DIR}/Sparkle.framework"
+                "$<TARGET_BUNDLE_DIR:Traktor>/Contents/Frameworks/Sparkle.framework"
+        VERBATIM
     )
 endif()
 
