@@ -76,7 +76,13 @@ set(APP_FORMS src/mainwindow.ui)
 # Platform-specific sources
 if(APPLE)
     enable_language(OBJCXX)
-    list(APPEND APP_SOURCES src/dockprogress.mm)
+    list(APPEND APP_SOURCES src/dockprogress.mm src/updatemanager.mm)
+    list(APPEND APP_HEADERS src/updatemanager.h)
+    # ARC for updatemanager.mm: cleaner ownership of SPUStandardUpdaterController
+    # and the KVO observer (raw Obj-C pointers in the C++ pimpl are __strong by
+    # default under ARC, so destruction releases them automatically).
+    set_source_files_properties(src/updatemanager.mm PROPERTIES
+        COMPILE_FLAGS "-fobjc-arc")
 else()
     list(APPEND APP_SOURCES src/dockprogress_stub.cpp)
 endif()
@@ -242,6 +248,10 @@ if(APPLE)
     )
     FetchContent_MakeAvailable(Sparkle)
 
+    # -F adds Sparkle's parent dir to the framework search path. Needed at
+    # both compile time (so #import <Sparkle/Sparkle.h> resolves) and link
+    # time (so -framework Sparkle finds it).
+    target_compile_options(Traktor PRIVATE "-F${sparkle_SOURCE_DIR}")
     target_link_libraries(Traktor PRIVATE
         "-F${sparkle_SOURCE_DIR}"
         "-framework Sparkle"
