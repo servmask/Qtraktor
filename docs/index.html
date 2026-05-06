@@ -154,6 +154,7 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
       margin-bottom: 14px;
+      scroll-margin-top: 24px;
     }
 
     .features {
@@ -247,8 +248,8 @@
       <div class="feat"><div class="fl">Cross-Platform</div><div class="fd">macOS, Windows, Linux</div></div>
     </div>
 
-    <div class="sec-label">Changelog</div>
-    <div class="clog" id="changelog">
+    <div class="sec-label" id="changelog">Changelog</div>
+    <div class="clog" id="changelog-content">
       <div class="loading">Loading...</div>
     </div>
 
@@ -328,7 +329,7 @@
         const vtLinks = parseVTLinks(rel.body);
         document.getElementById('downloads').innerHTML = assets.map((a,i) => card(a, i===0, vtLinks)).join('');
 
-        const cl = document.getElementById('changelog');
+        const cl = document.getElementById('changelog-content');
         if (rel.body) {
           let b = rel.body
             .replace(/^## .+$/gm, '')
@@ -345,6 +346,13 @@
           cl.innerHTML = `<h3>What's new in ${rel.tag_name}</h3>${b}`;
         } else {
           cl.innerHTML = '<p style="color:var(--text-dim)">No changelog yet.</p>';
+        }
+
+        // Re-scroll if the user landed on #changelog: the initial browser
+        // scroll happened against the empty placeholder, so the resolved
+        // position is wrong once the real content (much taller) renders.
+        if (location.hash === '#changelog') {
+          document.getElementById('changelog').scrollIntoView();
         }
       } catch(e) {
         document.getElementById('downloads').innerHTML =
