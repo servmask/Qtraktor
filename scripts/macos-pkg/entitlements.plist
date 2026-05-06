@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Defense-in-depth for hardened runtime + Qt:
+         Qt's QRegularExpression is backed by PCRE2, which uses JIT
+         compilation when available. Hardened runtime blocks JIT memory
+         allocation by default; without this entitlement,
+         pcre2_jit_compile_16 → pthread_jit_write_protect_np crashes the
+         process with SIGTRAP the first time a regex compiles (e.g. when
+         QFileDialog parses its filter string).
+
+         Today this entitlement is technically not exercised in our
+         production builds because install-qt-action ships Qt with PCRE2
+         JIT disabled — but it costs nothing to grant and protects
+         against any future Qt-source change in CI. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+</dict>
+</plist>

@@ -88,6 +88,16 @@ jobs:
     needs: build-macos
     runs-on: macos-latest
     steps:
+      # Sparse checkout up-front: scripts/macos-pkg/ is needed for both
+      # entitlements.plist (codesign step) and the pkgbuild scripts/resources
+      # (PKG step). Doing it once here removes the previous "rename before
+      # checkout" + redundant second checkout pattern.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/macos-pkg
+          sparse-checkout-cone-mode: false
+
       - name: Download arm64 app (full bundle)
         uses: actions/download-artifact@v4
         with:
@@ -178,8 +188,12 @@ jobs:
             codesign --force --options runtime --timestamp --sign "$IDENTITY" "$lib"
           done
 
-          # Sign the app bundle last
-          codesign --force --options runtime --timestamp --sign "$IDENTITY" Universal-Traktor.app
+          # Sign the app bundle last, with entitlements applied to the OUTER
+          # bundle only (not to nested frameworks per Apple guidance).
+          # See scripts/macos-pkg/entitlements.plist for the rationale.
+          codesign --force --options runtime --timestamp \
+            --entitlements scripts/macos-pkg/entitlements.plist \
+            --sign "$IDENTITY" Universal-Traktor.app
 
           codesign --verify --deep --strict --verbose=2 Universal-Traktor.app
 
@@ -203,20 +217,11 @@ jobs:
 
           rm -f "$RUNNER_TEMP/Traktor.zip"
 
-      - name: Rename app before checkout
-        run: mv Universal-Traktor.app /tmp/Traktor.app
-
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            scripts/macos-pkg
-          sparse-checkout-cone-mode: false
-
       - name: Build PKG installer
         env:
           INSTALLER_IDENTITY: ${{ secrets.APPLE_DEVELOPER_ID_INSTALLER }}
         run: |
-          mv /tmp/Traktor.app Traktor.app
+          mv Universal-Traktor.app Traktor.app
 
           # Generate component plist and disable bundle relocation
           mkdir -p /tmp/pkg-root
