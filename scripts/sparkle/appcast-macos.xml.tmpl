@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+    Sparkle 2 appcast for Traktor (macOS).
+
+    Rendered by .github/workflows/release.yml at release time. Variables
+    substituted via python3 os.path.expandvars (placeholders shown with
+    angle brackets here so the rendering pass doesn't substitute the
+    documentation itself):
+      <VERSION_TAG>       — release tag, e.g. "v1.10.0"
+      <VERSION_NUM>       — bare version, e.g. "1.10.0" (matches CFBundleVersion)
+      <PUB_DATE>          — RFC-822 publication date
+      <DOWNLOAD_URL>      — full URL to the signed Traktor.app.zip on the release
+      <SPARKLE_SIG_LINE>  — output of sign_update -f <key> Traktor.app.zip,
+                             e.g. sparkle:edSignature="..." length="..."
+
+    The published appcast lives at:
+      https://github.com/servmask/Qtraktor/releases/latest/download/appcast-macos.xml
+    (the latest/download/ redirect resolves to the current release, so the
+    URL embedded in the app via SUFeedURL stays static across versions.)
+-->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    <channel>
+        <title>Traktor</title>
+        <link>https://github.com/servmask/Qtraktor</link>
+        <description>Auto-update feed for Traktor (macOS)</description>
+        <language>en</language>
+        <item>
+            <title>Version ${VERSION_NUM}</title>
+            <pubDate>${PUB_DATE}</pubDate>
+            <sparkle:version>${VERSION_NUM}</sparkle:version>
+            <sparkle:shortVersionString>${VERSION_NUM}</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>11.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://github.com/servmask/Qtraktor/releases/tag/${VERSION_TAG}</sparkle:releaseNotesLink>
+            <enclosure url="${DOWNLOAD_URL}" type="application/octet-stream" ${SPARKLE_SIG_LINE} />
+        </item>
+    </channel>
+</rss>

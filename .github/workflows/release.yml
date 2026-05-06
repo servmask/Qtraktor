@@ -88,14 +88,16 @@ jobs:
     needs: build-macos
     runs-on: macos-latest
     steps:
-      # Sparse checkout up-front: scripts/macos-pkg/ is needed for both
-      # entitlements.plist (codesign step) and the pkgbuild scripts/resources
-      # (PKG step). Doing it once here removes the previous "rename before
-      # checkout" + redundant second checkout pattern.
+      # Sparse checkout up-front: scripts/macos-pkg/ has entitlements.plist
+      # (codesign step) and pkgbuild scripts/resources (PKG step);
+      # scripts/sparkle/ has the appcast XML template (Sparkle artifact step).
+      # Doing it once here removes the previous "rename before checkout"
+      # + redundant second checkout pattern.
       - uses: actions/checkout@v4
         with:
           sparse-checkout: |
             scripts/macos-pkg
+            scripts/sparkle
           sparse-checkout-cone-mode: false
 
       - name: Download arm64 app (full bundle)
@@ -231,6 +233,62 @@ jobs:
           xcrun stapler validate Universal-Traktor.app
 
           rm -f "$RUNNER_TEMP/Traktor.zip"
+
+      - name: Build Sparkle update artifact and signed appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
+        run: |
+          # Pin the Sparkle version to match CMakeLists.txt's FetchContent.
+          # Both versions must be kept in sync — the framework bundled into
+          # the .app and the sign_update tool used to sign the update zip
+          # should come from the same Sparkle release.
+          SPARKLE_VERSION=2.9.1
+          curl -sL \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" \
+            -o "$RUNNER_TEMP/sparkle.tar.xz"
+          mkdir -p "$RUNNER_TEMP/sparkle-tools"
+          tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle-tools"
+          SIGN_UPDATE="$RUNNER_TEMP/sparkle-tools/bin/sign_update"
+
+          # Zip the (already-stapled) .app for Sparkle delivery.
+          # Sparkle's recommended form: --sequesterRsrc preserves resource
+          # forks (different from the notarization zip which uses
+          # --keepParent only).
+          ditto -c -k --sequesterRsrc --keepParent Universal-Traktor.app Traktor.app.zip
+
+          # Write the EdDSA private key to a temp file. The GitHub Secret
+          # value is already the 44-char base64 string in Sparkle's
+          # deployable format — paste-as-is, no decode step.
+          KEY_FILE="$RUNNER_TEMP/sparkle_private.key"
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > "$KEY_FILE"
+          SPARKLE_SIG_LINE=$("$SIGN_UPDATE" -f "$KEY_FILE" Traktor.app.zip)
+          rm -f "$KEY_FILE"
+
+          # Render appcast-macos.xml from the template.
+          # VERSION_TAG keeps the leading "v" (e.g. v1.10.0) for URLs;
+          # VERSION_NUM strips it (e.g. 1.10.0) so sparkle:version matches
+          # CFBundleVersion/CFBundleShortVersionString in Info.plist.
+          # Python's os.path.expandvars is used instead of envsubst because
+          # gettext is not reliably on PATH on macOS runners (Homebrew's
+          # gettext is keg-only); python3 always is.
+          export VERSION_TAG="${{ env.VERSION }}"
+          export VERSION_NUM="${VERSION_TAG#v}"
+          export PUB_DATE="$(date -u +'%a, %d %b %Y %H:%M:%S +0000')"
+          export DOWNLOAD_URL="https://github.com/servmask/Qtraktor/releases/download/${VERSION_TAG}/Traktor.app.zip"
+          export SPARKLE_SIG_LINE
+          python3 -c 'import os, sys; sys.stdout.write(os.path.expandvars(sys.stdin.read()))' \
+            < scripts/sparkle/appcast-macos.xml.tmpl > appcast-macos.xml
+
+          echo "--- appcast-macos.xml ---"
+          cat appcast-macos.xml
+
+      - name: Upload Sparkle artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Traktor-Sparkle-${{ env.VERSION }}
+          path: |
+            Traktor.app.zip
+            appcast-macos.xml
 
       - name: Build PKG installer
         env:
@@ -485,6 +543,8 @@ jobs:
             Traktor-${{ env.VERSION }}.pkg/Traktor-${{ env.VERSION }}.pkg \
             Traktor-${{ env.VERSION }}.exe/Traktor-${{ env.VERSION }}.exe \
             Traktor-x86_64-${{ env.VERSION }}.AppImage/Traktor-x86_64-${{ env.VERSION }}.AppImage \
+            Traktor-Sparkle-${{ env.VERSION }}/Traktor.app.zip \
+            Traktor-Sparkle-${{ env.VERSION }}/appcast-macos.xml \
             --repo "${{ github.repository }}"
 
       - name: Update Homebrew Cask

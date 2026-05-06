@@ -10,6 +10,10 @@
     <string>APPL</string>
     <key>CFBundleSignature</key>
     <string>@QMAKE_PKGINFO_TYPEINFO@</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@PROJECT_VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@PROJECT_VERSION@</string>
     <key>CFBundleIconFile</key>
     <string>traktor.icns</string>
     <key>LSMinimumSystemVersion</key>
@@ -17,6 +21,12 @@
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>SUFeedURL</key>
+    <string>https://github.com/servmask/Qtraktor/releases/latest/download/appcast-macos.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>Ui6Y0zPGi/B4GEln/6fcf8wKXdHwy7BfWf2fNwE5n6c=</string>
+    <key>SUEnableAutomaticChecks</key>
     <true/>
     <key>CFBundleDocumentTypes</key>
     <array>
