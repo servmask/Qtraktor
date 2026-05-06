@@ -2,129 +2,92 @@
 
 #include <QApplication>
 #include <QDate>
-#include <QDialogButtonBox>
 #include <QFont>
+#include <QFrame>
 #include <QLabel>
+#include <QPalette>
 #include <QVBoxLayout>
 
-#ifdef Q_OS_MAC
-#include "updatemanager.h"
-#include <QCheckBox>
-#include <QPushButton>
-#include <QSignalBlocker>
-#endif
-
-AboutDialog::AboutDialog(UpdateManager *updateManager, QWidget *parent)
-    : QDialog(parent), m_updateManager(updateManager)
+AboutDialog::AboutDialog(QWidget *parent) : QDialog(parent)
 {
     setWindowTitle(tr("About Traktor"));
     setModal(true);
 
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(32, 28, 32, 20);
-    layout->setSpacing(6);
+    auto *outer = new QVBoxLayout(this);
+    outer->setContentsMargins(0, 0, 0, 0);
+    outer->setSpacing(0);
 
-    // App icon — only rendered if QApplication has a window icon set.
+    auto *body = new QVBoxLayout;
+    body->setContentsMargins(40, 32, 40, 24);
+    body->setSpacing(0);
+
+    // App icon — pulled from the QApplication window icon set in MainWindow.
     QPixmap iconPixmap = QApplication::windowIcon().pixmap(96, 96);
     if (!iconPixmap.isNull()) {
         auto *iconLabel = new QLabel(this);
         iconLabel->setPixmap(iconPixmap);
         iconLabel->setAlignment(Qt::AlignCenter);
-        layout->addWidget(iconLabel);
-        layout->addSpacing(8);
+        body->addWidget(iconLabel);
+        body->addSpacing(20);
     }
 
-    // App name
-    auto *nameLabel = new QLabel(QStringLiteral("Traktor"), this);
-    QFont nameFont = nameLabel->font();
-    nameFont.setPointSize(nameFont.pointSize() + 6);
-    nameFont.setBold(true);
-    nameLabel->setFont(nameFont);
-    nameLabel->setAlignment(Qt::AlignCenter);
-    layout->addWidget(nameLabel);
+    // Combined name + version on one line ("Traktor 1.9.1").
+    auto *titleLabel = new QLabel(QStringLiteral("Traktor %1").arg(QStringLiteral(PROJECT_VERSION_STR)), this);
+    QFont titleFont = titleLabel->font();
+    titleFont.setPointSize(titleFont.pointSize() + 8);
+    titleFont.setBold(true);
+    titleLabel->setFont(titleFont);
+    titleLabel->setAlignment(Qt::AlignCenter);
+    body->addWidget(titleLabel);
 
-    // Version
-    auto *versionLabel = new QLabel(tr("Version %1").arg(QStringLiteral(PROJECT_VERSION_STR)), this);
-    versionLabel->setAlignment(Qt::AlignCenter);
-    layout->addWidget(versionLabel);
-
-    layout->addSpacing(10);
+    body->addSpacing(20);
 
     // Tagline — All-in-One WP Migration & Backup is ServMask's own plugin
-    // (the one that creates .wpress files); link points to its WP.org page.
-    auto *taglineLabel = new QLabel(tr("Extracts .wpress backup files from<br>"
-                                       "<a href=\"https://wordpress.org/plugins/all-in-one-wp-migration/\">"
-                                       "All-in-One WP Migration &amp; Backup</a>."),
+    // (the one that creates .wpress files).
+    auto *taglineLabel = new QLabel(tr("Extracts .wpress backup files from\n"
+                                       "All-in-One WP Migration & Backup."),
                                     this);
     taglineLabel->setAlignment(Qt::AlignCenter);
-    taglineLabel->setOpenExternalLinks(true);
-    taglineLabel->setTextFormat(Qt::RichText);
-    layout->addWidget(taglineLabel);
+    body->addWidget(taglineLabel);
 
-    layout->addSpacing(10);
+    body->addSpacing(20);
 
-    // Homepage + license links
-    auto *linksLabel =
-        new QLabel(tr("<a href=\"https://github.com/servmask/Qtraktor\">github.com/servmask/Qtraktor</a><br>"
-                      "Licensed under <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">GPLv3</a>"),
-                   this);
-    linksLabel->setAlignment(Qt::AlignCenter);
+    // Three external links separated by middle-dot bullets. Single rich-text
+    // QLabel so the row centres as a unit and wraps cleanly on narrow widths.
+    auto *linksLabel = new QLabel(this);
+    linksLabel->setText(QStringLiteral("<a href=\"https://traktor.wp-migration.com/#changelog\">%1</a>"
+                                       " &nbsp;·&nbsp; "
+                                       "<a href=\"https://github.com/servmask/Qtraktor/issues/new/choose\">%2</a>"
+                                       " &nbsp;·&nbsp; "
+                                       "<a href=\"https://github.com/servmask/Qtraktor\">%3</a>")
+                            .arg(tr("What's new"), tr("Report a bug"), tr("View on GitHub")));
+    linksLabel->setTextFormat(Qt::RichText);
     linksLabel->setOpenExternalLinks(true);
-    layout->addWidget(linksLabel);
+    linksLabel->setAlignment(Qt::AlignCenter);
+    linksLabel->setWordWrap(true);
+    body->addWidget(linksLabel);
 
-    layout->addSpacing(10);
+    outer->addLayout(body);
 
-    // Copyright — matches the canonical format used in ServMask's PHP
-    // codebases ("Copyright (C) 2014-YYYY ServMask Inc."). Year auto-updates
-    // via QDate::currentDate() so we never have to remember to bump it.
-    auto *copyrightLabel =
-        new QLabel(tr("Copyright © 2014-%1 ServMask Inc.").arg(QString::number(QDate::currentDate().year())), this);
-    QFont copyrightFont = copyrightLabel->font();
-    copyrightFont.setPointSize(copyrightFont.pointSize() - 1);
-    copyrightLabel->setFont(copyrightFont);
-    copyrightLabel->setAlignment(Qt::AlignCenter);
-    layout->addWidget(copyrightLabel);
+    // Divider above the footer.
+    auto *divider = new QFrame(this);
+    divider->setFrameShape(QFrame::HLine);
+    divider->setFrameShadow(QFrame::Plain);
+    outer->addWidget(divider);
 
-#ifdef Q_OS_MAC
-    // Update controls — only meaningful on macOS where Sparkle is integrated.
-    // Windows/Linux users see the dialog without these widgets at all.
-    if (m_updateManager) {
-        layout->addSpacing(16);
-
-        // Check for Updates button — bound to UpdateManager::canCheckForUpdates
-        auto *checkButton = new QPushButton(tr("Check for Updates..."), this);
-        layout->addWidget(checkButton, 0, Qt::AlignCenter);
-        checkButton->setEnabled(m_updateManager->canCheckForUpdates());
-        connect(checkButton, &QPushButton::clicked, m_updateManager, &UpdateManager::checkForUpdates);
-        connect(m_updateManager, &UpdateManager::canCheckForUpdatesChanged, this,
-                [this, checkButton] { checkButton->setEnabled(m_updateManager->canCheckForUpdates()); });
-
-        layout->addSpacing(10);
-
-        // Auto-check checkbox — two-way bound to
-        // UpdateManager::automaticallyChecksForUpdates (NSUserDefaults-backed,
-        // persists across launches via Sparkle).
-        auto *autoCheckBox = new QCheckBox(tr("Automatically check for updates"), this);
-        layout->addWidget(autoCheckBox, 0, Qt::AlignCenter);
-        autoCheckBox->setChecked(m_updateManager->automaticallyChecksForUpdates());
-        connect(autoCheckBox, &QCheckBox::toggled, m_updateManager, &UpdateManager::setAutomaticallyChecksForUpdates);
-        // Reflect external changes (e.g. another window of the app, or
-        // Sparkle's own UI flipping the value) without re-emitting toggled().
-        connect(m_updateManager, &UpdateManager::automaticallyChecksForUpdatesChanged, this, [this, autoCheckBox] {
-            QSignalBlocker blocker(autoCheckBox);
-            autoCheckBox->setChecked(m_updateManager->automaticallyChecksForUpdates());
-        });
-    }
-#else
-    Q_UNUSED(m_updateManager);
-#endif
-
-    layout->addSpacing(12);
-
-    // Close button
-    auto *buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
-    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    layout->addWidget(buttonBox);
+    // Footer — copyright + license, smaller and muted (palette-driven so it
+    // adapts to light/dark mode).
+    auto *footer = new QLabel(
+        tr("© %1 ServMask Inc. · Licensed under GPLv3").arg(QString::number(QDate::currentDate().year())), this);
+    QFont footerFont = footer->font();
+    footerFont.setPointSize(footerFont.pointSize() - 1);
+    footer->setFont(footerFont);
+    footer->setAlignment(Qt::AlignCenter);
+    QPalette footerPal = footer->palette();
+    footerPal.setColor(QPalette::WindowText, footerPal.color(QPalette::Disabled, QPalette::WindowText));
+    footer->setPalette(footerPal);
+    footer->setContentsMargins(0, 12, 0, 12);
+    outer->addWidget(footer);
 
     setFixedSize(sizeHint());
 }
