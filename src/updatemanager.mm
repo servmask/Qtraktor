@@ -2,7 +2,7 @@
 
 #import <Sparkle/Sparkle.h>
 
-// pimpl — owns the Sparkle controller. Defined in the .mm so the header can
+// pimpl - owns the Sparkle controller. Defined in the .mm so the header can
 // stay Sparkle-free.
 class UpdateManagerPrivate
 {

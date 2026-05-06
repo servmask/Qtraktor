@@ -62,11 +62,11 @@ jobs:
           rm -rf build/Traktor.app/Contents/PlugIns/networkinformation \
                  build/Traktor.app/Contents/PlugIns/tls
 
-      - name: Archive app (arm64 — full bundle with Qt frameworks)
+      - name: Archive app (arm64 - full bundle with Qt frameworks)
         if: matrix.arch == 'arm64'
         run: tar -cf Traktor-arm64.app.tar -C build Traktor.app
 
-      - name: Archive binary only (x86_64 — just the executable and OpenSSL)
+      - name: Archive binary only (x86_64 - just the executable and OpenSSL)
         if: matrix.arch == 'x86_64'
         run: |
           # Only archive files that need lipo merge (Traktor binary + OpenSSL)
@@ -219,7 +219,7 @@ jobs:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
         run: |
-          # notarytool doesn't accept .app directly — wrap in a zip first
+          # notarytool doesn't accept .app directly - wrap in a zip first
           ditto -c -k --keepParent Universal-Traktor.app "$RUNNER_TEMP/Traktor.zip"
 
           xcrun notarytool submit "$RUNNER_TEMP/Traktor.zip" \
@@ -239,7 +239,7 @@ jobs:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
         run: |
           # Pin the Sparkle version to match CMakeLists.txt's FetchContent.
-          # Both versions must be kept in sync — the framework bundled into
+          # Both versions must be kept in sync - the framework bundled into
           # the .app and the sign_update tool used to sign the update zip
           # should come from the same Sparkle release.
           SPARKLE_VERSION=2.9.1
@@ -258,7 +258,7 @@ jobs:
 
           # Write the EdDSA private key to a temp file. The GitHub Secret
           # value is already the 44-char base64 string in Sparkle's
-          # deployable format — paste-as-is, no decode step.
+          # deployable format - paste-as-is, no decode step.
           KEY_FILE="$RUNNER_TEMP/sparkle_private.key"
           printf '%s' "$SPARKLE_PRIVATE_KEY" > "$KEY_FILE"
           SPARKLE_SIG_LINE=$("$SIGN_UPDATE" -f "$KEY_FILE" Traktor.app.zip)
@@ -393,7 +393,7 @@ jobs:
           # Bundle the OpenSSL + zlib runtime DLLs from vcpkg. Names follow
           # upstream OUTPUT_NAME conventions, not the package name:
           #   libssl-3-x64.dll, libcrypto-3-x64.dll  (OpenSSL)
-          #   z.dll                                  (zlib — OUTPUT_NAME "z")
+          #   z.dll                                  (zlib - OUTPUT_NAME "z")
           # Glob the version suffixes so port revisions don't break the bundle.
           $vcpkgBin = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin"
           Write-Host "vcpkg bin contents:"

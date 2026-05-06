@@ -427,11 +427,11 @@ int cmdVerify(int /*argc*/, char * /*argv*/[])
                 }
                 fflush(stdout);
 
-                // Don't seek past content — streaming already consumed it
+                // Don't seek past content - streaming already consumed it
                 return true;
             }
 
-            // No CRC for this entry — iterateHeaders will skip content automatically
+            // No CRC for this entry - iterateHeaders will skip content automatically
 
             if (jsonMode) {
                 QJsonObject obj;
@@ -642,7 +642,7 @@ int cmdLegacyExtract(int argc, char *argv[])
 
     QDir extractTo(destination + "/" + fileInfo.baseName());
     // mkpath() returns true when the directory already exists, so on error
-    // paths we must only removeRecursively() the dir if WE created it —
+    // paths we must only removeRecursively() the dir if WE created it -
     // otherwise we'd silently wipe a user's pre-existing directory (e.g. a
     // prior successful extraction at the same destination).
     const bool dirPreExisted = QFileInfo::exists(extractTo.path());

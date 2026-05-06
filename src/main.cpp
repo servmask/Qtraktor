@@ -11,7 +11,7 @@
 // $DISPLAY, no libGL) the binary stays in CLI mode.
 //
 // macOS / Windows: the GUI runs inline below under #ifndef __linux__.
-// No dlopen, no plugin — the executable links Qt6::Widgets directly,
+// No dlopen, no plugin - the executable links Qt6::Widgets directly,
 // exactly as it always has.
 
 #include "clihandler.h"
@@ -26,18 +26,18 @@
 // Windows builds use the console subsystem so CLI subcommands (--help,
 // list, extract, ...) print reliably to any shell. The cost is that a
 // console window is allocated when launching from Explorer. Hide it (only
-// if we own the console — never the inherited terminal of cmd / PowerShell
+// if we own the console - never the inherited terminal of cmd / PowerShell
 // / Windows Terminal) and detach before the GUI event loop starts so the
 // GUI looks clean. No-op on macOS/Linux.
 static void detachFromConsole()
 {
 #ifdef Q_OS_WIN
     // GetWindowThreadProcessId(GetConsoleWindow(), ...) returns the PID of
-    // conhost.exe (the out-of-process console host), not our PID — so a
+    // conhost.exe (the out-of-process console host), not our PID - so a
     // self-ownership check is always false. The documented idiom is
     // GetConsoleProcessList: a count of 1 means we are the sole attachee,
     // i.e. Windows allocated this console for us at launch (Explorer flow).
-    // A count > 1 means we inherited the user's terminal — leave it alone.
+    // A count > 1 means we inherited the user's terminal - leave it alone.
     if (GetConsoleProcessList(nullptr, 0) == 1) {
         if (HWND console = GetConsoleWindow())
             ShowWindow(console, SW_HIDE);
@@ -175,7 +175,7 @@ static int runGuiPlugin(int argc, char **argv, bool loudOnFail)
 
 // Probe whether GUI mode is viable. Returns true and leaves whyOut
 // empty on success; returns false and writes a short reason on
-// failure. We dlclose what we open here — runGuiPlugin re-opens for
+// failure. We dlclose what we open here - runGuiPlugin re-opens for
 // the real run.
 static bool guiProbeOk(QString *whyOut)
 {
@@ -254,12 +254,12 @@ int main(int argc, char *argv[])
 
     // ── Subcommand dispatch (all platforms) ────────────────────────────────
     // Detect subcommand or --help/--version from raw argv BEFORE creating
-    // any Q*Application. CLI subcommands use QCoreApplication only — they
+    // any Q*Application. CLI subcommands use QCoreApplication only - they
     // never construct QApplication and never need a display server.
     if (argc >= 2) {
         const QString sub = QString::fromLocal8Bit(argv[1]);
 
-        // Global help — intercept before QApplication to prevent
+        // Global help - intercept before QApplication to prevent
         // QCommandLineParser's auto-help from showing the old GUI-mode help
         if (sub == "--help" || sub == "-h") {
             printGlobalHelp();
@@ -352,7 +352,7 @@ static int runGuiInline(int argc, char **argv)
         QDir extractTo(destination + "/" + fileInfo.baseName());
         // mkpath() returns true when the directory already exists, so on
         // error paths we must only removeRecursively() the dir if WE created
-        // it — otherwise we'd silently wipe a user's pre-existing directory
+        // it - otherwise we'd silently wipe a user's pre-existing directory
         // (e.g. a prior successful extraction at the same destination).
         const bool dirPreExisted = QFileInfo::exists(extractTo.path());
         if (!QDir().mkpath(extractTo.path())) {
@@ -429,7 +429,7 @@ static int runGuiInline(int argc, char **argv)
         return 0;
     }
 
-    // Past the CLI-only paths — we're going to QApplication::exec() one way
+    // Past the CLI-only paths - we're going to QApplication::exec() one way
     // or another (auto-extract, GUI with --source, or bare GUI). On Windows,
     // drop the console window allocated for the console-subsystem binary so
     // the GUI launch doesn't leave an empty cmd window behind.

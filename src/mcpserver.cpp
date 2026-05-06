@@ -421,7 +421,7 @@ static QJsonObject dispatch(const QJsonObject &request)
         return makeResponse(id, result);
     }
 
-    // Notifications have no id — don't respond
+    // Notifications have no id - don't respond
     if (method == "notifications/initialized") {
         return QJsonObject(); // empty = no response
     }
@@ -568,7 +568,7 @@ int cmdMcp()
         const QJsonObject request = doc.object();
         const QJsonObject response = dispatch(request);
 
-        // Notifications produce an empty response — don't send anything
+        // Notifications produce an empty response - don't send anything
         if (response.isEmpty()) {
             continue;
         }

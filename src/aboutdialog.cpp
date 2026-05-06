@@ -12,7 +12,7 @@
 namespace
 {
 
-// Mid-luma blend of WindowText against Window — gives a muted hairline /
+// Mid-luma blend of WindowText against Window - gives a muted hairline /
 // secondary-text colour that adapts to light/dark mode while staying ≥4.5:1
 // against Window (WCAG 2.1 AA for body text).
 QColor mutedTextColor(const QPalette &pal, qreal mix = 0.55)
@@ -27,7 +27,7 @@ QColor mutedTextColor(const QPalette &pal, qreal mix = 0.55)
 // WindowText into Window. Subtler than QFrame::HLine (which paints with the
 // full WindowText colour and reads as a stark line on dark backgrounds).
 // 3:1 against Window is the WCAG 2.1 AA threshold for non-text UI components,
-// but a hairline divider is decorative — readability is not at stake — so
+// but a hairline divider is decorative - readability is not at stake - so
 // we go lower (mix=0.18, ≈2:1) to match the design.
 QWidget *makeHairline(QWidget *parent)
 {
@@ -55,7 +55,7 @@ AboutDialog::AboutDialog(QWidget *parent) : QDialog(parent)
     body->setContentsMargins(60, 32, 60, 0);
     body->setSpacing(0);
 
-    // App icon — pulled from the QApplication window icon set in MainWindow.
+    // App icon - pulled from the QApplication window icon set in MainWindow.
     QPixmap iconPixmap = QApplication::windowIcon().pixmap(65, 65);
     if (!iconPixmap.isNull()) {
         auto *iconLabel = new QLabel(this);
@@ -65,7 +65,7 @@ AboutDialog::AboutDialog(QWidget *parent) : QDialog(parent)
         body->addSpacing(20);
     }
 
-    // App name — 22 px Medium (weight 500). Pixel size keeps it consistent
+    // App name - 22 px Medium (weight 500). Pixel size keeps it consistent
     // across platforms regardless of UI font DPI.
     auto *titleLabel = new QLabel(QStringLiteral("Traktor"), this);
     QFont titleFont = titleLabel->font();
@@ -78,7 +78,7 @@ AboutDialog::AboutDialog(QWidget *parent) : QDialog(parent)
 
     body->addSpacing(3);
 
-    // Version line — secondary text in the same muted colour as the footer.
+    // Version line - secondary text in the same muted colour as the footer.
     auto *versionLabel = new QLabel(tr("Version %1").arg(QStringLiteral(PROJECT_VERSION_STR)), this);
     QFont versionFont = versionLabel->font();
     versionFont.setPixelSize(11);
@@ -91,7 +91,7 @@ AboutDialog::AboutDialog(QWidget *parent) : QDialog(parent)
 
     body->addSpacing(20);
 
-    // Tagline — All-in-One WP Migration & Backup is ServMask's own plugin
+    // Tagline - All-in-One WP Migration & Backup is ServMask's own plugin
     // (the one that creates .wpress files).
     auto *taglineLabel = new QLabel(tr("Extracts .wpress backup files from\n"
                                        "All-in-One WP Migration & Backup."),
@@ -131,7 +131,7 @@ AboutDialog::AboutDialog(QWidget *parent) : QDialog(parent)
     // Hairline divider above the footer.
     outer->addWidget(makeHairline(this));
 
-    // Footer — copyright + license, smaller and muted. Uses a 0.55 mix of
+    // Footer - copyright + license, smaller and muted. Uses a 0.55 mix of
     // WindowText into Window which lands at ≥4.5:1 contrast in macOS dark
     // mode (WCAG 2.1 AA for body text). PlaceholderText would be too light
     // on some platforms; the explicit blend is portable.

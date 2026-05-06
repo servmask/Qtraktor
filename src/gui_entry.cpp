@@ -6,7 +6,7 @@
 // signature changed (was int main, is now extern "C" int run_gui).
 //
 // On macOS / Windows the same logic runs inline inside main.cpp under
-// the #ifndef __linux__ branch — gui_entry.cpp is not compiled there.
+// the #ifndef __linux__ branch - gui_entry.cpp is not compiled there.
 
 #include "appdelegate.h"
 #include "autoextractor.h"

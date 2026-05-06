@@ -124,7 +124,7 @@ jobs:
 
           # Smoke test the bundled AppImage. --version routes through the CLI
           # path so no display is needed. Use whatever filename linuxdeploy
-          # produced (e.g. Traktor-x86_64.AppImage) — no rename needed.
+          # produced (e.g. Traktor-x86_64.AppImage) - no rename needed.
           appimage=$(ls Traktor-*.AppImage | head -n1)
           ./"$appimage" --version
 
@@ -298,7 +298,7 @@ jobs:
           # Bundle the OpenSSL + zlib runtime DLLs from vcpkg. Names follow
           # upstream OUTPUT_NAME conventions, not the package name:
           #   libssl-3-x64.dll, libcrypto-3-x64.dll  (OpenSSL)
-          #   z.dll                                  (zlib — OUTPUT_NAME "z")
+          #   z.dll                                  (zlib - OUTPUT_NAME "z")
           # Glob the version suffixes so port revisions don't break the bundle.
           $vcpkgBin = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin"
           Write-Host "vcpkg bin contents:"

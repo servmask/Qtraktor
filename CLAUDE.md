@@ -13,7 +13,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release \
   -DOPENSSL_ROOT_DIR="$(brew --prefix openssl)"
 cmake --build build -j$(sysctl -n hw.ncpu)
 
-# Linux (Qt 6.8 required — install via package manager or aqtinstall)
+# Linux (Qt 6.8 required - install via package manager or aqtinstall)
 sudo apt install cmake qt6-base-dev libgl1-mesa-dev libssl-dev zlib1g-dev pkg-config
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
@@ -34,7 +34,7 @@ cd build && ctest --output-on-failure  # Linux/macOS
 cd build && ctest --output-on-failure  # Windows
 ```
 
-97 tests across 6 test classes: BackupFile (13), CryptoUtils streaming (7), ExtractionWorker (9), QSettings (6), Fuzz (15), CLI (39 — covers CrcDevice, path normalization, header iteration, single-file extraction, archive info, MCP protocol, and AgentConfigManager). Tests use QTest framework. Test entry point is `tests/tst_main.cpp` which runs all classes sequentially.
+97 tests across 6 test classes: BackupFile (13), CryptoUtils streaming (7), ExtractionWorker (9), QSettings (6), Fuzz (15), CLI (39 - covers CrcDevice, path normalization, header iteration, single-file extraction, archive info, MCP protocol, and AgentConfigManager). Tests use QTest framework. Test entry point is `tests/tst_main.cpp` which runs all classes sequentially.
 
 On headless Linux (CI), set `QT_QPA_PLATFORM=offscreen` because tests use QApplication.
 

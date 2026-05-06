@@ -12,7 +12,7 @@
 
          Today this entitlement is technically not exercised in our
          production builds because install-qt-action ships Qt with PCRE2
-         JIT disabled — but it costs nothing to grant and protects
+         JIT disabled - but it costs nothing to grant and protects
          against any future Qt-source change in CI. -->
     <key>com.apple.security.cs.allow-jit</key>
     <true/>

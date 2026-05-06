@@ -134,7 +134,7 @@ bool AgentConfigManager::registerAgent(AgentType type, QString *errorMsg)
             file.close();
 
             if (parseErr.error != QJsonParseError::NoError) {
-                // Invalid JSON — backup and start fresh
+                // Invalid JSON - backup and start fresh
                 const QString backupPath = path + ".bak";
                 QFile::remove(backupPath);
                 QFile::copy(path, backupPath);
@@ -164,7 +164,7 @@ bool AgentConfigManager::registerAgent(AgentType type, QString *errorMsg)
         if (existing["command"].toString() == command) {
             return true; // Already registered correctly
         }
-        // Stale path — update it
+        // Stale path - update it
     }
 
     mcpServers["traktor"] = traktorConfig;

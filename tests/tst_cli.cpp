@@ -378,7 +378,7 @@ private slots:
 
     void testMcpVerifyV1Unchecked()
     {
-        // v1 archives have no CRC — MCP verify should report "unchecked"
+        // v1 archives have no CRC - MCP verify should report "unchecked"
         BackupFile *bf = openFixture("plain.wpress");
         QVERIFY(bf != nullptr);
 
@@ -528,7 +528,7 @@ private slots:
         f.write("not valid json {{{");
         f.close();
 
-        // Try to parse — should fail
+        // Try to parse - should fail
         QVERIFY(f.open(QIODevice::ReadOnly));
         QJsonParseError parseErr;
         QJsonDocument::fromJson(f.readAll(), &parseErr);
@@ -700,7 +700,7 @@ private slots:
         QVERIFY(tmpDir.isValid());
         AgentConfigManager mgr(tmpDir.path());
 
-        // Gemini config is in ~/.gemini/settings.json — directory doesn't exist yet
+        // Gemini config is in ~/.gemini/settings.json - directory doesn't exist yet
         bool ok = mgr.registerAgent(AGENT_GEMINI);
         QVERIFY(ok);
         QVERIFY(QFile::exists(tmpDir.path() + "/.gemini/settings.json"));

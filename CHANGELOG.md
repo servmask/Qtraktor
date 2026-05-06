@@ -14,8 +14,8 @@
 
 ### Features
 
-* **Hybrid CLI/GUI mode** — split GUI behind a runtime probe ([#40](https://github.com/servmask/Qtraktor/issues/40))
-  * Linux: thin executable links only `Qt6::Core` + `libdl`; the Widgets GUI lives in `libtraktor-gui.so` and is `dlopen`'d at runtime when `$DISPLAY`/`$WAYLAND_DISPLAY`, `libGL.so.1`, and the plugin all probe successfully — minimal/headless containers stay in CLI mode without loader errors
+* **Hybrid CLI/GUI mode** - split GUI behind a runtime probe ([#40](https://github.com/servmask/Qtraktor/issues/40))
+  * Linux: thin executable links only `Qt6::Core` + `libdl`; the Widgets GUI lives in `libtraktor-gui.so` and is `dlopen`'d at runtime when `$DISPLAY`/`$WAYLAND_DISPLAY`, `libGL.so.1`, and the plugin all probe successfully - minimal/headless containers stay in CLI mode without loader errors
   * Windows: switched to the console subsystem so CLI subcommands pipe stdout cleanly from PowerShell/cmd; the console is detached only when Traktor owns it (never the user's inherited terminal) before the GUI event loop starts
   * Adds `--gui` / `--cli` / `--no-gui` flags, a global `--help` / `--version` handler, and refactors subcommand dispatch out of `main.cpp` into `clihandler.cpp` so the Linux thin exe and the macOS/Windows inline-GUI path share the same machinery
   * `cmdLegacyExtract` now honors the `TRAKTOR_PASSWORD` env var and uses `mkpath()` for parity with the new `extract` subcommand
@@ -36,13 +36,13 @@
 
 ### Features
 
-* **Qt 6.8 LTS + CMake + C++17** — Full framework modernization ([#26](https://github.com/servmask/Qtraktor/issues/26)) ([fa019f3](https://github.com/servmask/Qtraktor/commit/fa019f3))
+* **Qt 6.8 LTS + CMake + C++17** - Full framework modernization ([#26](https://github.com/servmask/Qtraktor/issues/26)) ([fa019f3](https://github.com/servmask/Qtraktor/commit/fa019f3))
   * Upgraded from Qt 5.15 (end-of-life) to Qt 6.8 LTS (supported until 2028)
   * Migrated build system from qmake to CMake
   * Upgraded C++ standard from C++11 to C++17
   * macOS: minimum version raised to 11.0 (Big Sur), required by Qt 6
   * Windows: upgraded to MSVC 2022 and Qt 6.8
-  * Leaner macOS app bundle — stripped unused Qt 6 frameworks (QML, SVG)
+  * Leaner macOS app bundle - stripped unused Qt 6 frameworks (QML, SVG)
 
 
 ### Bug Fixes

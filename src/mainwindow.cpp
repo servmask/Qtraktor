@@ -46,7 +46,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     QAction *uninstallAction = toolsMenu->addAction(tr("Uninstall Traktor..."));
     connect(uninstallAction, &QAction::triggered, this, &MainWindow::uninstallTraktor);
 
-    // "About Traktor" — universal across platforms.
+    // "About Traktor" - universal across platforms.
     // setMenuRole(AboutRole) routes this into the macOS app menu's About
     // slot; on Windows/Linux it stays in the Tools menu where added.
     QAction *aboutAction = new QAction(tr("About Traktor"), this);
@@ -58,19 +58,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     });
 
 #ifdef Q_OS_MAC
-    // Sparkle auto-update bridge — macOS only for now (WinSparkle is a
+    // Sparkle auto-update bridge - macOS only for now (WinSparkle is a
     // separate workstream). Construction starts Sparkle's scheduled check
     // loop, reading SUFeedURL and SUPublicEDKey from Info.plist.
     m_updateManager = new UpdateManager(this);
 
-    // "Check for Updates..." — setMenuRole(ApplicationSpecificRole) tells
+    // "Check for Updates..." - setMenuRole(ApplicationSpecificRole) tells
     // Qt to relocate this into the macOS app menu (Traktor → ...) right
     // below the About item. We add it to the Tools menu but Qt moves it
     // out at runtime on macOS.
     //
-    // SPUStandardUpdaterController::checkForUpdates: is idempotent — if a
+    // SPUStandardUpdaterController::checkForUpdates: is idempotent - if a
     // check is already in flight it just re-fronts Sparkle's progress
-    // window — so we don't need to disable the action while busy.
+    // window - so we don't need to disable the action while busy.
     QAction *checkForUpdatesAction = new QAction(tr("Check for Updates..."), this);
     checkForUpdatesAction->setMenuRole(QAction::ApplicationSpecificRole);
     toolsMenu->addAction(checkForUpdatesAction);

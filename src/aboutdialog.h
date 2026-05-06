@@ -8,7 +8,7 @@
 // external links (changelog, issues, repo), and copyright/license footer.
 //
 // Update controls live in the menu (see MainWindow's "Check for Updates…"
-// action), not in this dialog — Sparkle's progress UI cannot raise above an
+// action), not in this dialog - Sparkle's progress UI cannot raise above an
 // application-modal Qt panel.
 
 class AboutDialog : public QDialog

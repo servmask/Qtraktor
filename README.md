@@ -26,7 +26,7 @@ Cross-platform desktop application for extracting WordPress `.wpress` backup fil
 
 **Installer (recommended):**
 
-Download [Traktor.pkg](https://github.com/servmask/Qtraktor/releases/latest) — installs the app to `/Applications` and adds the `traktor` CLI to your terminal.
+Download [Traktor.pkg](https://github.com/servmask/Qtraktor/releases/latest) - installs the app to `/Applications` and adds the `traktor` CLI to your terminal.
 
 **Homebrew:**
 
@@ -45,7 +45,7 @@ Download [Traktor.exe](https://github.com/servmask/Qtraktor/releases/latest) ins
 
 ### Linux
 
-Download [Traktor.AppImage](https://github.com/servmask/Qtraktor/releases/latest) — make executable and run.
+Download [Traktor.AppImage](https://github.com/servmask/Qtraktor/releases/latest) - make executable and run.
 
 ## Command Line
 
@@ -87,7 +87,7 @@ traktor mcp register
 traktor mcp status
 ```
 
-After registration, your AI agent can use Traktor as a tool — ask it "what's in this .wpress backup?" and it just works.
+After registration, your AI agent can use Traktor as a tool - ask it "what's in this .wpress backup?" and it just works.
 
 ## Building from Source
 

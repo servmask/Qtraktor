@@ -36,9 +36,9 @@ InstallResult installCli()
                     result.message += "\n" + msg;
                 return result;
             }
-            // Symlink points elsewhere — will overwrite
+            // Symlink points elsewhere - will overwrite
         } else {
-            // Regular file — refuse
+            // Regular file - refuse
             result.success = false;
             result.message = QString("A file already exists at %1 that is not a symlink. "
                                      "Remove it manually before installing.")

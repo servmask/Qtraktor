@@ -209,7 +209,7 @@ bool BackupFile::extractSingleFile(const QString &targetPath, QIODevice *dest)
         const QString entryPath = normalizePath(info.filePath, info.fileName);
 
         if (entryPath == normalizedTarget) {
-            // Found the target file — stream it to dest
+            // Found the target file - stream it to dest
             const bool isCompressed = !CryptoUtils::isConfigFile(info.fileName) && compressionType != COMPRESSION_NONE;
 
             QString processError;

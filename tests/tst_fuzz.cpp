@@ -327,7 +327,7 @@ private slots:
 
     void testMissingConfigFile()
     {
-        // Archive with no package.json — goes straight to data files
+        // Archive with no package.json - goes straight to data files
         QByteArray data;
         data.append(makeHeader("file.txt", 5));
         data.append("hello");

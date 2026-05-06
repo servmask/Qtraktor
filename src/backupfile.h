@@ -15,7 +15,7 @@
 
 // QIODevice sink that computes CRC32 on write and discards data.
 // Used by verify to check CRC without disk writes or memory bloat.
-// Pure sink — no downstream device, no buffering.
+// Pure sink - no downstream device, no buffering.
 class CrcDevice : public QIODevice
 {
 public:

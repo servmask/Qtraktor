@@ -93,7 +93,7 @@ endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # ── Hybrid CLI/GUI build (Linux only) ──────────────────────────────────
-    # The executable links Qt6::Core only — no libGL, no QtGui, no
+    # The executable links Qt6::Core only - no libGL, no QtGui, no
     # QtWidgets in DT_NEEDED. The GUI lives in libtraktor-gui.so which
     # main.cpp dlopen()s at runtime when probes for $DISPLAY, libGL.so.1
     # and the plugin itself succeed. On a minimal container the binary
@@ -249,7 +249,7 @@ if(APPLE)
     )
 
     # ── Sparkle auto-update framework ──────────────────────────────────────
-    # Vendored via FetchContent — downloaded at configure time, not committed.
+    # Vendored via FetchContent - downloaded at configure time, not committed.
     # macdeployqt does NOT bundle non-Qt frameworks (per Qt's deployment
     # docs), so we copy Sparkle.framework into the .app via the POST_BUILD
     # step below. The existing inside-out codesign loop in release.yml
