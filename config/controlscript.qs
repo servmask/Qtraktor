@@ -29,6 +29,15 @@ function Controller()
 {
 }
 
+// Skip the Component Selection wizard page. Traktor ships as a single
+// IFW component (com.servmask.traktor) which is always installed, so the
+// page would only show one always-checked checkbox with no user decision
+// to make. Auto-advancing keeps the wizard tight.
+Controller.prototype.ComponentSelectionPageCallback = function()
+{
+    gui.clickButton(buttons.NextButton);
+};
+
 Controller.prototype.IntroductionPageCallback = function()
 {
     // ApplicationsDir resolves to %ProgramFiles% on Windows admin installs;
