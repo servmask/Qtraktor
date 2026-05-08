@@ -295,6 +295,11 @@ jobs:
           Copy-Item build\Traktor.exe -Destination dist\
           windeployqt dist\Traktor.exe
 
+          # Bundle WinSparkle.dll. The CMake POST_BUILD step copies it
+          # alongside Traktor.exe in build\; mirror that in dist\ so the
+          # smoke test can resolve the import at process load.
+          Copy-Item build\WinSparkle.dll -Destination dist\
+
           # Bundle the OpenSSL + zlib runtime DLLs from vcpkg. Names follow
           # upstream OUTPUT_NAME conventions, not the package name:
           #   libssl-3-x64.dll, libcrypto-3-x64.dll  (OpenSSL)
