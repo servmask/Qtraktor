@@ -413,9 +413,13 @@ jobs:
           # Bundle file type icon for .wpress association
           Copy-Item "icons\file.ico" -Destination build\
 
-          # Prepare installer package data
+          # Prepare installer package data. The CMake POST_BUILD step puts
+          # WinSparkle.dll next to Traktor.exe in build\, so the wildcard
+          # copy below picks it up. Exclude _deps\ (FetchContent's extracted
+          # WinSparkle release) so the installer doesn't ship ~30 MB of
+          # redundant per-arch DLLs and the source tarball.
           New-Item -ItemType Directory -Path packages\com.servmask.traktor\data -Force
-          Get-ChildItem build -Exclude "*.obj","*.ilk","*.pdb","CMake*","cmake*","*.cmake","tst_*" | Copy-Item -Destination packages\com.servmask.traktor\data -Recurse
+          Get-ChildItem build -Exclude "*.obj","*.ilk","*.pdb","CMake*","cmake*","*.cmake","tst_*","_deps" | Copy-Item -Destination packages\com.servmask.traktor\data -Recurse
 
           # Replace version placeholders
           $version = "${{ env.VERSION }}"
