@@ -18,7 +18,7 @@
 #include "aboutdialog.h"
 #include "cryptoutils.h"
 
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
 #include "updatemanager.h"
 #endif
 
@@ -57,22 +57,25 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         dlg.exec();
     });
 
-#ifdef Q_OS_MAC
-    // Sparkle auto-update bridge - macOS only for now (WinSparkle is a
-    // separate workstream). Construction starts Sparkle's scheduled check
-    // loop, reading SUFeedURL and SUPublicEDKey from Info.plist.
+#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+    // Auto-update bridge: Sparkle on macOS, WinSparkle on Windows. Both
+    // backends start their scheduled check loop on construction and read
+    // their config from a platform-native source (Info.plist on macOS,
+    // hardcoded API calls in updatemanager_win.cpp on Windows).
     m_updateManager = new UpdateManager(this);
 
-    // "Check for Updates..." - setMenuRole(ApplicationSpecificRole) tells
-    // Qt to relocate this into the macOS app menu (Traktor → ...) right
-    // below the About item. We add it to the Tools menu but Qt moves it
-    // out at runtime on macOS.
+    // "Check for Updates..." - on macOS, setMenuRole(ApplicationSpecificRole)
+    // tells Qt to relocate this into the app menu (Traktor → ...) right
+    // below the About item. On Windows the role is a no-op so the action
+    // stays in the Tools menu where added.
     //
-    // SPUStandardUpdaterController::checkForUpdates: is idempotent - if a
-    // check is already in flight it just re-fronts Sparkle's progress
+    // The check call is idempotent on both platforms - if a check is
+    // already in flight, the framework re-fronts its existing progress
     // window - so we don't need to disable the action while busy.
     QAction *checkForUpdatesAction = new QAction(tr("Check for Updates..."), this);
+#ifdef Q_OS_MAC
     checkForUpdatesAction->setMenuRole(QAction::ApplicationSpecificRole);
+#endif
     toolsMenu->addAction(checkForUpdatesAction);
     connect(checkForUpdatesAction, &QAction::triggered, m_updateManager, &UpdateManager::checkForUpdates);
 #endif

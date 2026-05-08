@@ -72,6 +72,7 @@ set(APP_HEADERS
     src/autoextractor.h
     src/progresswindow.h
     src/dockprogress.h
+    src/updatemanager.h
 )
 
 set(APP_FORMS src/mainwindow.ui)
@@ -81,12 +82,13 @@ set(APP_RESOURCES resources.qrc)
 if(APPLE)
     enable_language(OBJCXX)
     list(APPEND APP_SOURCES src/dockprogress.mm src/updatemanager.mm)
-    list(APPEND APP_HEADERS src/updatemanager.h)
     # ARC for updatemanager.mm: cleaner ownership of SPUStandardUpdaterController
     # and the KVO observer (raw Obj-C pointers in the C++ pimpl are __strong by
     # default under ARC, so destruction releases them automatically).
     set_source_files_properties(src/updatemanager.mm PROPERTIES
         COMPILE_FLAGS "-fobjc-arc")
+elseif(WIN32)
+    list(APPEND APP_SOURCES src/dockprogress_stub.cpp src/updatemanager_win.cpp)
 else()
     list(APPEND APP_SOURCES src/dockprogress_stub.cpp)
 endif()

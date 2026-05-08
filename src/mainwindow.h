@@ -12,7 +12,7 @@ namespace Ui
 class MainWindow;
 }
 
-class UpdateManager; // macOS-only; declared in src/updatemanager.h
+class UpdateManager; // declared in src/updatemanager.h; instantiated on macOS and Windows
 
 class MainWindow : public QMainWindow
 {
@@ -44,7 +44,7 @@ private:
     QString currentExtractDir;
     QString lastExtractionError;
     ExtractionWorker *activeWorker = nullptr;
-    UpdateManager *m_updateManager = nullptr; // non-null only on macOS
+    UpdateManager *m_updateManager = nullptr; // non-null on macOS and Windows; nullptr on Linux
     void showInGraphicalShell(const QString &pathIn);
 };
 
