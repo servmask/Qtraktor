@@ -438,6 +438,62 @@ jobs:
           name: Traktor-${{ env.VERSION }}.exe
           path: Traktor-${{ env.VERSION }}.exe
 
+      - name: Build WinSparkle update artifact and signed appcast
+        shell: bash
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
+        run: |
+          # Pin the WinSparkle version to match CMakeLists.txt's FetchContent.
+          # Both must come from the same release: the DLL bundled into the
+          # installer and winsparkle-tool.exe used to sign the .exe payload.
+          WINSPARKLE_VERSION=0.9.2
+          curl -sL \
+            "https://github.com/vslavik/winsparkle/releases/download/v${WINSPARKLE_VERSION}/WinSparkle-${WINSPARKLE_VERSION}.zip" \
+            -o "$RUNNER_TEMP/winsparkle.zip"
+          unzip -q "$RUNNER_TEMP/winsparkle.zip" -d "$RUNNER_TEMP/winsparkle"
+          SIGN_TOOL="$RUNNER_TEMP/winsparkle/WinSparkle-${WINSPARKLE_VERSION}/bin/winsparkle-tool.exe"
+
+          # The GitHub Secret stores the same Ed25519 private key used by
+          # macOS Sparkle. WinSparkle's tools/winsparkle-tool.cpp accepts
+          # both the 32-byte seed format Sparkle 2 produces and the older
+          # 96-byte concatenated format, so this works against the existing
+          # secret with no conversion.
+          KEY_FILE="$RUNNER_TEMP/sparkle_private.key"
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > "$KEY_FILE"
+
+          # -v is required: default output is the bare base64 signature,
+          # while verbose adds the appcast-ready line
+          # 'sparkle:edSignature="..." length="..."' that the template
+          # substitutes wholesale into the <enclosure> element.
+          SPARKLE_SIG_LINE=$("$SIGN_TOOL" sign -v -f "$KEY_FILE" "Traktor-${{ env.VERSION }}.exe")
+          rm -f "$KEY_FILE"
+
+          # Render appcast-windows.xml from the template via sed. Python's
+          # os.path.expandvars(${VAR}) does not substitute on Windows
+          # runners (verified live: env vars are exported, but ntpath's
+          # expandvars leaves ${name} placeholders untouched). sed is
+          # both simpler and dependency-free here. Pipe delimiters
+          # avoid the / in URLs; none of our values contain | or &.
+          VERSION_TAG="${{ env.VERSION }}"
+          VERSION_NUM="${VERSION_TAG#v}"
+          PUB_DATE="$(date -u +'%a, %d %b %Y %H:%M:%S +0000')"
+          DOWNLOAD_URL="https://github.com/servmask/Qtraktor/releases/download/${VERSION_TAG}/Traktor-${VERSION_TAG}.exe"
+          sed -e "s|\${VERSION_TAG}|$VERSION_TAG|g" \
+              -e "s|\${VERSION_NUM}|$VERSION_NUM|g" \
+              -e "s|\${PUB_DATE}|$PUB_DATE|g" \
+              -e "s|\${DOWNLOAD_URL}|$DOWNLOAD_URL|g" \
+              -e "s|\${SPARKLE_SIG_LINE}|$SPARKLE_SIG_LINE|g" \
+              scripts/sparkle/appcast-windows.xml.tmpl > appcast-windows.xml
+
+          echo "--- appcast-windows.xml ---"
+          cat appcast-windows.xml
+
+      - name: Upload Sparkle artifacts (Windows)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Traktor-Sparkle-Windows-${{ env.VERSION }}
+          path: appcast-windows.xml
+
   build-linux:
     runs-on: ubuntu-22.04
     env:
@@ -549,6 +605,7 @@ jobs:
             Traktor-x86_64-${{ env.VERSION }}.AppImage/Traktor-x86_64-${{ env.VERSION }}.AppImage \
             Traktor-Sparkle-${{ env.VERSION }}/Traktor.app.zip \
             Traktor-Sparkle-${{ env.VERSION }}/appcast-macos.xml \
+            Traktor-Sparkle-Windows-${{ env.VERSION }}/appcast-windows.xml \
             --repo "${{ github.repository }}"
 
       - name: Update Homebrew Cask

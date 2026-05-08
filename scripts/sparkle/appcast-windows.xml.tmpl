@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+    WinSparkle appcast for Traktor (Windows).
+
+    Rendered by .github/workflows/release.yml at release time. Variables
+    substituted via sed in the "Build WinSparkle update artifact and
+    signed appcast" step (placeholders shown with angle brackets here
+    so the substitution pass doesn't substitute the documentation
+    itself):
+      <VERSION_TAG>       release tag, e.g. "v1.11.0" (kept in URLs)
+      <VERSION_NUM>       bare version, e.g. "1.11.0" (matches the
+                          string passed to win_sparkle_set_app_details)
+      <PUB_DATE>          RFC-822 publication date
+      <DOWNLOAD_URL>      full URL to the signed installer on the release
+      <SPARKLE_SIG_LINE>  output of `winsparkle-tool.exe sign -v -f <key>
+                          Traktor-<TAG>.exe`,
+                          e.g. sparkle:edSignature="..." length="..."
+
+    The published appcast lives at:
+      https://github.com/servmask/Qtraktor/releases/latest/download/appcast-windows.xml
+    (the latest/download/ redirect resolves to the current release, so
+    the URL passed to win_sparkle_set_appcast_url() in
+    src/updatemanager_win.cpp stays static across versions.)
+-->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    <channel>
+        <title>Traktor</title>
+        <link>https://github.com/servmask/Qtraktor</link>
+        <description>Auto-update feed for Traktor (Windows)</description>
+        <language>en</language>
+        <item>
+            <title>Version ${VERSION_NUM}</title>
+            <pubDate>${PUB_DATE}</pubDate>
+            <sparkle:version>${VERSION_NUM}</sparkle:version>
+            <sparkle:shortVersionString>${VERSION_NUM}</sparkle:shortVersionString>
+            <sparkle:releaseNotesLink>https://github.com/servmask/Qtraktor/releases/tag/${VERSION_TAG}</sparkle:releaseNotesLink>
+            <enclosure url="${DOWNLOAD_URL}" type="application/octet-stream" ${SPARKLE_SIG_LINE} />
+        </item>
+    </channel>
+</rss>
