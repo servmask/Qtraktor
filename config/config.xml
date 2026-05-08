@@ -6,4 +6,5 @@
     <Publisher>ServMask, Inc.</Publisher>
     <StartMenuDir>Traktor</StartMenuDir>
     <TargetDir>@ApplicationsDir@/Traktor</TargetDir>
+    <ControlScript>controlscript.qs</ControlScript>
 </Installer>
