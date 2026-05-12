@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/servmask/Qtraktor/compare/v1.11.0...v1.11.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* **windows:** hide console window on GUI launch from Explorer ([#49](https://github.com/servmask/Qtraktor/issues/49)) ([f7b965d](https://github.com/servmask/Qtraktor/commit/f7b965dcd6f71432aa99477c241ad19f0c72fe4e))
+
 ## [1.11.0](https://github.com/servmask/Qtraktor/compare/v1.10.0...v1.11.0) (2026-05-12)
 
 
