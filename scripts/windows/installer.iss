@@ -50,6 +50,10 @@ WizardStyle=modern
 ; two levels to reach repo root where LICENSE and icons\ actually live.
 LicenseFile=..\..\LICENSE
 SetupIconFile=..\..\icons\traktor.ico
+; Wizard bitmaps live next to this .iss file. Inno picks the closest match
+; to the current DPI scale from the comma-separated list at install time.
+WizardSmallImageFile=traktor-wizard-small.bmp,traktor-wizard-small@2x.bmp
+WizardImageFile=traktor-wizard.bmp,traktor-wizard@2x.bmp
 UninstallDisplayIcon={app}\Traktor.exe
 ChangesAssociations=yes
 CloseApplications=yes
