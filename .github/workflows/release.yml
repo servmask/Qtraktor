@@ -359,7 +359,6 @@ jobs:
           host: windows
           target: desktop
           arch: win64_msvc2022_64
-          tools: tools_ifw
           cache: true
 
       - name: Setup MSVC
@@ -384,7 +383,7 @@ jobs:
           cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=%VCPKG_INSTALLATION_ROOT%\scripts\buildsystems\vcpkg.cmake -DBUILD_TESTING=OFF
           cmake --build build
 
-      - name: Create installer
+      - name: Stage Windows runtime
         shell: pwsh
         run: |
           # Bundle Qt runtime DLLs
@@ -406,31 +405,90 @@ jobs:
 
           # Smoke test: run the bundled exe. If any DLL is missing, the OS
           # surfaces a non-zero exit and we fail here instead of shipping a
-          # broken installer.
+          # broken installer. The CMake POST_BUILD step already deposited
+          # WinSparkle.dll next to Traktor.exe in build\, so its import
+          # resolves at process load.
           & build\Traktor.exe --version
           if ($LASTEXITCODE -ne 0) { throw "Bundled Traktor.exe failed smoke test (exit $LASTEXITCODE)" }
 
-          # Bundle file type icon for .wpress association
+          # Bundle file type icon for .wpress association. Inno's
+          # [Files] block copies everything from build\, so file.ico has
+          # to be staged here.
           Copy-Item "icons\file.ico" -Destination build\
 
-          # Prepare installer package data. The CMake POST_BUILD step puts
-          # WinSparkle.dll next to Traktor.exe in build\, so the wildcard
-          # copy below picks it up. Exclude _deps\ (FetchContent's extracted
-          # WinSparkle release) so the installer doesn't ship ~30 MB of
-          # redundant per-arch DLLs and the source tarball.
-          New-Item -ItemType Directory -Path packages\com.servmask.traktor\data -Force
-          Get-ChildItem build -Exclude "*.obj","*.ilk","*.pdb","CMake*","cmake*","*.cmake","tst_*","_deps" | Copy-Item -Destination packages\com.servmask.traktor\data -Recurse
+          # Bundle WinSparkle's MIT license alongside the runtime so the
+          # installed payload reproduces the upstream copyright/license
+          # notice as required by the MIT terms. FetchContent extracted
+          # the release zip under build\_deps\winsparkle-src\; the file
+          # is plain ASCII with no extension upstream, so we add a .txt
+          # suffix for end-user friendliness on Windows.
+          Copy-Item "build\_deps\winsparkle-src\COPYING" -Destination "build\WinSparkle-LICENSE.txt"
 
-          # Replace version placeholders
-          $version = "${{ env.VERSION }}"
-          $date = Get-Date -Format yyyy-MM-dd
-          (Get-Content "config\config.xml") -replace "develop", $version | Set-Content "config\config.xml"
-          (Get-Content "packages\com.servmask.traktor\meta\package.xml") -replace "develop", $version | Set-Content "packages\com.servmask.traktor\meta\package.xml"
-          (Get-Content "packages\com.servmask.traktor\meta\package.xml") -replace "release-date", $date | Set-Content "packages\com.servmask.traktor\meta\package.xml"
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: |
+          # windows-2022 ships Chocolatey but not Inno Setup. The
+          # 'innosetup' package installs ISCC.exe to
+          # C:\Program Files (x86)\Inno Setup 6\. We invoke ISCC by
+          # absolute path below to avoid PATH-refresh quirks in pwsh.
+          choco install innosetup -y --no-progress
 
-          # Find and run Qt IFW binarycreator
-          $ifw = Get-ChildItem "$env:IQTA_TOOLS\QtInstallerFramework" -Directory | Sort-Object Name -Descending | Select-Object -First 1
-          & "$($ifw.FullName)\bin\binarycreator.exe" -c config\config.xml -p packages "Traktor-$env:VERSION.exe"
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found at $iscc" }
+
+          # env.VERSION is "vX.Y.Z" for real release tags and "latest"
+          # for workflow_dispatch test runs.
+          #
+          # Three derived values:
+          #   $appVersion         "vX.Y.Z" / "latest" - keeps the leading v
+          #                       for the output filename and the download
+          #                       URL written into the appcast, matching
+          #                       the GitHub release asset naming.
+          #   $appVersionDisplay  "X.Y.Z" / "latest" - the leading v
+          #                       is stripped for the user-facing strings
+          #                       Inno renders (Programs and Features,
+          #                       wizard headers, etc.) so they stay
+          #                       consistent with the bare version the
+          #                       app itself reports via PROJECT_VERSION
+          #                       and the appcast's <sparkle:version>.
+          #   $versionInfo        "X.Y.Z.W" - strict numeric required by
+          #                       Inno's VersionInfoVersion; falls back
+          #                       to 0.0.0.0 when env.VERSION is not
+          #                       semver (e.g. "latest").
+          $appVersion = $env:VERSION
+          $appVersionDisplay = $appVersion -replace '^v', ''
+          if ($appVersion -match '^v?(\d+)\.(\d+)\.(\d+)') {
+              $versionInfo = "$($Matches[1]).$($Matches[2]).$($Matches[3]).0"
+          } else {
+              $versionInfo = "0.0.0.0"
+          }
+
+          # /DAppVersion + /DVersionInfoVersion feed {#AppVersion} and
+          # {#VersionInfoVersion} inside installer.iss. /DSourceDir is
+          # the absolute path to the staged build\ directory whose
+          # contents become {app}. /O. writes the .exe to the working
+          # directory; /F sets the output base filename so the final
+          # artifact is Traktor-<tag>.exe and the subsequent WinSparkle
+          # sign step finds it.
+          # /F<name> takes the filename joined with no inner quotes;
+          # PowerShell's native-command argument passing forwarded the
+          # embedded `" earlier as literal " characters to ISCC, which
+          # then rejected the OutputBaseFilename value as containing
+          # invalid filename chars (verified live, run 25738401146).
+          & $iscc `
+            "/DAppVersion=$appVersionDisplay" `
+            "/DVersionInfoVersion=$versionInfo" `
+            "/DSourceDir=$PWD\build" `
+            "/O." `
+            "/FTraktor-$appVersion" `
+            scripts\windows\installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed (exit $LASTEXITCODE)" }
+          if (-not (Test-Path "Traktor-$appVersion.exe")) {
+              throw "Expected Traktor-$appVersion.exe not found in $PWD"
+          }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

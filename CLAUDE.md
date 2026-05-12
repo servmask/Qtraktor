@@ -117,7 +117,7 @@ scripts/macos-pkg/
 ## CI
 
 - `ci.yml`: Runs on PRs and pushes to master. Builds and tests on Linux, macOS, Windows with Qt 6.8 via install-qt-action. Lints with clang-format v18. Validates conventional commit PR titles. Uploads build artifacts (PKG + app tar for macOS) on PRs.
-- `release.yml`: Triggered by GitHub Release publish. Builds universal macOS PKG (two-runner matrix + lipo merge), Windows installer (Qt IFW), Linux AppImage. Uploads to release. Submits to VirusTotal. Auto-updates Homebrew Cask in servmask/homebrew-traktor.
+- `release.yml`: Triggered by GitHub Release publish. Builds universal macOS PKG (two-runner matrix + lipo merge), Windows installer (Inno Setup 6 via `choco install innosetup` + `ISCC.exe scripts/windows/installer.iss`), Linux AppImage. Uploads to release. Submits to VirusTotal. Auto-updates Homebrew Cask in servmask/homebrew-traktor.
 - `release-please.yml`: Auto-creates release PRs with changelog from conventional commits.
 - `label.yml`: Auto-labels PRs by file path.
 
