@@ -32,13 +32,13 @@
 static void detachFromConsole()
 {
 #ifdef Q_OS_WIN
-    // GetWindowThreadProcessId(GetConsoleWindow(), ...) returns the PID of
-    // conhost.exe (the out-of-process console host), not our PID - so a
-    // self-ownership check is always false. The documented idiom is
-    // GetConsoleProcessList: a count of 1 means we are the sole attachee,
-    // i.e. Windows allocated this console for us at launch (Explorer flow).
-    // A count > 1 means we inherited the user's terminal - leave it alone.
-    if (GetConsoleProcessList(nullptr, 0) == 1) {
+    // GetConsoleProcessList returns the number of processes attached to this
+    // console. A count of 1 means we are the sole attachee - Windows allocated
+    // the console for us at launch (Explorer / double-click flow). A count > 1
+    // means we inherited the user's terminal - leave it alone.
+    // NOTE: must pass a valid (non-null) buffer; passing nullptr returns 0 (fail).
+    DWORD pids[2];
+    if (GetConsoleProcessList(pids, 2) == 1) {
         if (HWND console = GetConsoleWindow())
             ShowWindow(console, SW_HIDE);
         FreeConsole();
@@ -234,6 +234,13 @@ static int runCliFallback(int argc, char **argv)
 
 int main(int argc, char *argv[])
 {
+#ifdef Q_OS_WIN
+    // No arguments = definitely a GUI launch (double-click / file association
+    // handled later). Hide the console immediately so it never flashes on screen.
+    if (argc == 1)
+        detachFromConsole();
+#endif
+
 #ifdef __linux__
     // Detect and strip Linux GUI/CLI flags BEFORE the all-platforms subcommand
     // dispatch so:
