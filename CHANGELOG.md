@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/servmask/Qtraktor/compare/v1.10.0...v1.11.0) (2026-05-12)
+
+
+### Features
+
+* **windows:** in-app auto-update via WinSparkle ([#48](https://github.com/servmask/Qtraktor/issues/48)) ([4fdc301](https://github.com/servmask/Qtraktor/commit/4fdc3012a44980806457b5f03bdc3addefb69ad1))
+
 ## [1.10.0](https://github.com/servmask/Qtraktor/compare/v1.9.1...v1.10.0) (2026-05-06)
 
 
