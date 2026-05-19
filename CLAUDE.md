@@ -82,7 +82,19 @@ src/
                         progress window, system tray notifications.
   progresswindow.h/cpp  Minimal progress window shown during auto-extract.
   passworddialog.h/cpp  Password prompt dialog for encrypted archives.
-  dropoverlay.h/cpp     Drag-and-drop overlay widget.
+  dropoverlay.h/cpp     Drag-and-drop overlay widget. Accepts local .wpress files and
+                        remote URLs (emits urlDropped signal for the latter).
+  clouddownloader.h/cpp Downloads a .wpress file from an HTTP/HTTPS URL to a temp
+                        file using QNetworkAccessManager. Normalizes cloud share links
+                        (Google Drive, Dropbox, OneDrive, Box, pCloud) into direct
+                        download URLs before fetching. Mega (mega.nz) is handled via a
+                        two-step flow: the file ID and AES-128-CTR key are parsed from
+                        the URL fragment (never sent to the server), the Mega public API
+                        is called to get a CDN URL, and the encrypted stream is decrypted
+                        on-the-fly using AES-128-CTR (vendored tiny-AES-c via src/megaaes.*)
+                        before writing to the temp file.
+  urlopendialog.h/cpp   "Open from URL" dialog (File menu). User pastes any cloud share
+                        link or direct URL; dialog validates it before enabling OK.
   appdelegate.h/cpp     macOS QEvent::FileOpen handling.
   dockprogress.h/mm     macOS Dock badge progress (Objective-C). Stub for other platforms.
 
@@ -136,4 +148,7 @@ scripts/macos-pkg/
 - Encrypted archives use AES-256-CBC via vendored tiny-AES-c (`vendor/tiny-aes-c/`).
   PKCS7 padding is validated and stripped in `CryptoUtils::decryptString`; a
   malformed pad is reported as a wrong-password error. No OpenSSL dependency.
-- The app makes zero network requests. Fully offline.
+- Mega downloads are decrypted with AES-128-CTR, also via vendored tiny-AES-c (a
+  separate AES-128 instance in `src/megaaes.*`); the decryption key never leaves the client.
+- Network requests: the app makes outbound HTTPS requests **only** when the user explicitly provides a URL (via drag-and-drop or File → Open from URL). No telemetry, no auto-update pings (those are handled by Sparkle/WinSparkle, not app code), no background connections. `clouddownloader.cpp` is the only file that touches `QNetworkAccessManager`.
+- Downloaded files land in a `QTemporaryFile` in the system temp dir and are deleted when the user clears the file or opens a new one. The path is never written to `QSettings`.

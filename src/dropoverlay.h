@@ -1,6 +1,7 @@
 #ifndef DROPOVERLAY_H
 #define DROPOVERLAY_H
 
+#include <QUrl>
 #include <QWidget>
 
 class DropOverlay : public QWidget
@@ -14,6 +15,7 @@ public:
 
 signals:
     void fileDropped(const QString &filePath);
+    void urlDropped(const QUrl &url);
     void clicked();
 
 protected:

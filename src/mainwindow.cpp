@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include <QApplication>
+#include <QFile>
 #include <QFileDialog>
 #include <QIODevice>
 #include <QIcon>
@@ -12,11 +13,13 @@
 #include <QSettings>
 #include <QTimer>
 #include "agentconfig.h"
+#include "clouddownloader.h"
 #include "installcli.h"
 #include "passworddialog.h"
 #include "setupdialog.h"
 #include "aboutdialog.h"
 #include "cryptoutils.h"
+#include "urlopendialog.h"
 
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
 #include "updatemanager.h"
@@ -33,8 +36,20 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->progressBar->setVisible(false);
     ui->logTextEdit->setVisible(false);
     connect(ui->dropZone, &DropOverlay::fileDropped, this, &MainWindow::openBackupFile);
+    connect(ui->dropZone, &DropOverlay::urlDropped, this, &MainWindow::openBackupFromUrl);
     connect(ui->dropZone, &DropOverlay::clicked, this, &MainWindow::openBackup);
     ui->clearButton->setVisible(false);
+
+    m_downloader = new CloudDownloader(this);
+    connect(m_downloader, &CloudDownloader::progress, this, &MainWindow::onDownloadProgress);
+    connect(m_downloader, &CloudDownloader::finished, this, &MainWindow::onDownloadFinished);
+    connect(m_downloader, &CloudDownloader::failed, this, &MainWindow::onDownloadFailed);
+
+    // Add File menu with Open from URL action
+    QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
+    QAction *openFromUrlAction = fileMenu->addAction(tr("Open from URL..."));
+    openFromUrlAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
+    connect(openFromUrlAction, &QAction::triggered, this, &MainWindow::openFromUrl);
 
     // Add Tools menu
     QMenu *toolsMenu = menuBar()->addMenu(tr("&Tools"));
@@ -139,6 +154,12 @@ void MainWindow::clearFile()
     ui->clearButton->setVisible(false);
     ui->progressBar->setVisible(false);
     ui->logTextEdit->setVisible(false);
+
+    // Remove temp file from a previous cloud download
+    if (!m_pendingTempFile.isEmpty()) {
+        QFile::remove(m_pendingTempFile);
+        m_pendingTempFile.clear();
+    }
 }
 
 void MainWindow::extractTo()
@@ -341,6 +362,72 @@ void MainWindow::openBackupFile(const QString &filename)
     ui->dropZone->setFileName(fileInfo.fileName());
     ui->extractBackupButton->setEnabled(true);
     ui->clearButton->setVisible(true);
+}
+
+void MainWindow::openBackupFromUrl(const QUrl &url)
+{
+    if (!m_downloader || m_downloading)
+        return;
+
+    if (!m_pendingTempFile.isEmpty()) {
+        QFile::remove(m_pendingTempFile);
+        m_pendingTempFile.clear();
+    }
+
+    setDownloadingState(true);
+    ui->dropZone->setFileName(tr("Downloading from %1\xe2\x80\xa6").arg(url.host()));
+    ui->progressBar->setVisible(true);
+    ui->progressBar->setRange(0, 100);
+    ui->progressBar->setValue(0);
+    m_downloader->download(url);
+}
+
+void MainWindow::onDownloadProgress(int percent)
+{
+    if (percent >= 0) {
+        ui->progressBar->setRange(0, 100);
+        ui->progressBar->setValue(percent);
+    } else {
+        // Content-Length unknown: show a busy/indeterminate bar
+        ui->progressBar->setRange(0, 0);
+    }
+}
+
+void MainWindow::onDownloadFinished(const QString &tempFilePath, const QString &suggestedName)
+{
+    setDownloadingState(false);
+    ui->progressBar->setRange(0, 100);
+    ui->progressBar->setVisible(false);
+    m_pendingTempFile = tempFilePath;
+    openBackupFile(tempFilePath);
+    ui->dropZone->setFileName(suggestedName);
+}
+
+void MainWindow::onDownloadFailed(const QString &errorMessage)
+{
+    setDownloadingState(false);
+    ui->progressBar->setRange(0, 100);
+    ui->progressBar->setVisible(false);
+    ui->dropZone->setFileName(QString());
+    QMessageBox::warning(this, tr("Download Failed"), errorMessage);
+}
+
+void MainWindow::openFromUrl()
+{
+    if (m_downloading)
+        return;
+    UrlOpenDialog dlg(this);
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+    openBackupFromUrl(dlg.url());
+}
+
+void MainWindow::setDownloadingState(bool downloading)
+{
+    m_downloading = downloading;
+    ui->openBackupButton->setEnabled(!downloading);
+    ui->extractBackupButton->setEnabled(!downloading);
+    ui->clearButton->setVisible(!downloading && !backupFilename.isEmpty());
 }
 
 void MainWindow::installCliTool()

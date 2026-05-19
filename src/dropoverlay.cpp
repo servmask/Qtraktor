@@ -1,4 +1,5 @@
 #include "dropoverlay.h"
+#include "clouddownloader.h"
 #include <QPainter>
 #include <QPen>
 #include <QDragEnterEvent>
@@ -33,16 +34,52 @@ void DropOverlay::setFileName(const QString &name)
     update();
 }
 
+// Returns a usable QUrl from the first line of a plain-text string, or an
+// invalid QUrl if the text doesn't look like a remote URL. Used as a fallback
+// when text/uri-list is absent or strips the URL fragment (e.g. Mega #KEY).
+static QUrl urlFromPlainText(const QString &text)
+{
+    const QString line = text.trimmed().split(QLatin1Char('\n')).first().trimmed();
+    const QUrl url = QUrl::fromUserInput(line);
+    return CloudDownloader::isRemoteUrl(url) ? url : QUrl();
+}
+
 void DropOverlay::dragEnterEvent(QDragEnterEvent *event)
 {
-    if (event->mimeData()->hasUrls()) {
-        QList<QUrl> urls = event->mimeData()->urls();
-        if (urls.count() == 1 && urls.first().toLocalFile().endsWith(".wpress", Qt::CaseInsensitive)) {
+    const QMimeData *mime = event->mimeData();
+
+    // ── Primary path: text/uri-list ───────────────────────────────────────
+    // Covers local-file drags and most remote URL drags.
+    // NOTE: text/uri-list strips URL fragments (RFC 2483), so Mega links
+    // dragged via this path will lose their #KEY — the text/plain fallback
+    // below catches that case with the fragment intact.
+    if (mime->hasUrls()) {
+        const QList<QUrl> urls = mime->urls();
+        if (urls.count() == 1) {
+            const QUrl &url = urls.first();
+            const QString localFile = url.toLocalFile();
+            if ((!localFile.isEmpty() && localFile.endsWith(QLatin1String(".wpress"), Qt::CaseInsensitive)) ||
+                CloudDownloader::isRemoteUrl(url)) {
+                setHighlighted(true);
+                event->acceptProposedAction();
+                return;
+            }
+        }
+    }
+
+    // ── Fallback: text/plain containing a URL ─────────────────────────────
+    // Cloud storage web UIs (Google Drive, Dropbox, Mega, …) often do not
+    // populate text/uri-list at all; they put the URL in text/plain instead.
+    // text/plain also preserves URL fragments, which is essential for Mega
+    // links where the decryption key lives after the #.
+    if (mime->hasText()) {
+        if (urlFromPlainText(mime->text()).isValid()) {
             setHighlighted(true);
             event->acceptProposedAction();
             return;
         }
     }
+
     event->ignore();
 }
 
@@ -55,15 +92,38 @@ void DropOverlay::dragLeaveEvent(QDragLeaveEvent *event)
 void DropOverlay::dropEvent(QDropEvent *event)
 {
     setHighlighted(false);
-    QList<QUrl> urls = event->mimeData()->urls();
-    if (urls.count() == 1) {
-        QString file = urls.first().toLocalFile();
-        if (file.endsWith(".wpress", Qt::CaseInsensitive)) {
-            emit fileDropped(file);
+    const QMimeData *mime = event->mimeData();
+
+    // ── Primary path: text/uri-list ───────────────────────────────────────
+    if (mime->hasUrls()) {
+        const QList<QUrl> urls = mime->urls();
+        if (urls.count() == 1) {
+            const QUrl &url = urls.first();
+            const QString localFile = url.toLocalFile();
+            if (!localFile.isEmpty() && localFile.endsWith(QLatin1String(".wpress"), Qt::CaseInsensitive)) {
+                emit fileDropped(localFile);
+                event->acceptProposedAction();
+                return;
+            }
+            if (CloudDownloader::isRemoteUrl(url)) {
+                emit urlDropped(url);
+                event->acceptProposedAction();
+                return;
+            }
+        }
+    }
+
+    // ── Fallback: text/plain containing a URL ─────────────────────────────
+    // Handles cloud web-UI drags and preserves Mega #KEY fragments.
+    if (mime->hasText()) {
+        const QUrl url = urlFromPlainText(mime->text());
+        if (url.isValid()) {
+            emit urlDropped(url);
             event->acceptProposedAction();
             return;
         }
     }
+
     event->ignore();
 }
 

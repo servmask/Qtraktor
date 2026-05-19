@@ -70,6 +70,8 @@ set(APP_SOURCES
     src/extractionworker.cpp
     src/autoextractor.cpp
     src/progresswindow.cpp
+    src/clouddownloader.cpp
+    src/urlopendialog.cpp
 )
 
 set(APP_HEADERS
@@ -90,6 +92,8 @@ set(APP_HEADERS
     src/progresswindow.h
     src/dockprogress.h
     src/updatemanager.h
+    src/clouddownloader.h
+    src/urlopendialog.h
 )
 
 set(APP_FORMS src/mainwindow.ui)
@@ -165,6 +169,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         src/appdelegate.cpp
         src/dockprogress_stub.cpp
         src/gui_entry.cpp
+        src/clouddownloader.cpp
+        src/urlopendialog.cpp
     )
     set(GUI_HEADERS
         src/mainwindow.h
@@ -176,6 +182,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         src/dropoverlay.h
         src/appdelegate.h
         src/dockprogress.h
+        src/clouddownloader.h
+        src/urlopendialog.h
     )
     qt_add_library(traktor-gui SHARED
         ${GUI_SOURCES} ${GUI_HEADERS} src/mainwindow.ui ${APP_RESOURCES}
