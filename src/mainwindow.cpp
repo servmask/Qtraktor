@@ -45,10 +45,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(m_downloader, &CloudDownloader::finished, this, &MainWindow::onDownloadFinished);
     connect(m_downloader, &CloudDownloader::failed, this, &MainWindow::onDownloadFailed);
 
-    // Add File menu with Open from URL action
-    QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
-    QAction *openFromUrlAction = fileMenu->addAction(tr("Open from URL..."));
+    // Insert "Open from URL…" into the existing File menu (defined in mainwindow.ui),
+    // right after the "Open backup" action so it appears as the second item.
+    auto *openFromUrlAction = new QAction(tr("Open from &URL..."), this);
     openFromUrlAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
+    ui->menu_File->insertAction(ui->actionClearFile, openFromUrlAction);
     connect(openFromUrlAction, &QAction::triggered, this, &MainWindow::openFromUrl);
 
     // Add Tools menu
