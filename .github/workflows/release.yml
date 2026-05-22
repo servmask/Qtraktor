@@ -349,6 +349,10 @@ jobs:
 
   build-windows:
     runs-on: windows-2022
+    # Scopes the SSL.com eSigner secrets (ESIGNER_*) to this job. Other
+    # repo workflows cannot read them. Required-reviewer rules can be
+    # added in repo Settings -> Environments without code changes.
+    environment: release-signing
     steps:
       - uses: actions/checkout@v4
 
@@ -424,6 +428,62 @@ jobs:
           # suffix for end-user friendliness on Windows.
           Copy-Item "build\_deps\winsparkle-src\COPYING" -Destination "build\WinSparkle-LICENSE.txt"
 
+      # signtool.exe ships with the Windows SDK on windows-2022 but isn't
+      # on PATH. Resolve the newest x64 build once and export to
+      # $GITHUB_ENV so both verify steps below can reuse it.
+      - name: Locate signtool
+        shell: pwsh
+        run: |
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+                      Where-Object { $_.DirectoryName -match '\\x64\\?$' } |
+                      Sort-Object { [Version]($_.VersionInfo.FileVersion -replace '[^\d.].*$','') } -Descending |
+                      Select-Object -First 1 -ExpandProperty FullName
+          if (-not $signtool) { throw "signtool.exe not found under Windows Kits" }
+          Write-Host "Resolved signtool: $signtool"
+          "SIGNTOOL_EXE=$signtool" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # Authenticode-sign the inner Traktor.exe before Inno Setup packages
+      # it. SmartScreen evaluates the entry-point binary the user actually
+      # launches after install, so leaving this unsigned (signing only the
+      # installer) would trigger reputation prompts on first run.
+      #
+      # Pinned to SHA b7f8ff3 (2025-06-23, develop@HEAD "Added nupkg
+      # signing") to keep the supply chain stable; bump deliberately after
+      # reviewing upstream diff.
+      - name: Code-sign Traktor.exe (SSL.com eSigner)
+        uses: sslcom/esigner-codesign@b7f8ff36fc0de8690fbbab8e5b4421d29802f747
+        with:
+          command: sign
+          username: ${{ secrets.ESIGNER_USERNAME }}
+          password: ${{ secrets.ESIGNER_PASSWORD }}
+          credential_id: ${{ secrets.ESIGNER_CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ESIGNER_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}/build/Traktor.exe
+          override: 'true'
+          malware_block: 'true'
+          environment_name: 'PROD'
+
+      - name: Verify Traktor.exe signature
+        shell: pwsh
+        env:
+          # Anchor on CN so an unexpected SSL.com EV-signed binary issued
+          # to a different org would fail the run even though signtool
+          # /pa would still call the chain valid.
+          EXPECTED_SUBJECT_REGEX: 'CN=Servmask Inc\.'
+        run: |
+          & $env:SIGNTOOL_EXE verify /pa /v build\Traktor.exe
+          if ($LASTEXITCODE -ne 0) { throw "signtool verify failed for build\Traktor.exe" }
+
+          $sig = Get-AuthenticodeSignature build\Traktor.exe
+          if ($sig.Status -ne 'Valid') {
+              throw "Authenticode status: $($sig.Status) - $($sig.StatusMessage)"
+          }
+          $subject = $sig.SignerCertificate.Subject
+          if ($subject -notmatch $env:EXPECTED_SUBJECT_REGEX) {
+              throw "Unexpected signer subject: '$subject' (expected match against '$env:EXPECTED_SUBJECT_REGEX')"
+          }
+          Write-Host "Signer OK: $subject"
+
       - name: Install Inno Setup 6
         shell: pwsh
         run: |
@@ -489,6 +549,43 @@ jobs:
           if (-not (Test-Path "Traktor-$appVersion.exe")) {
               throw "Expected Traktor-$appVersion.exe not found in $PWD"
           }
+
+      # Authenticode-sign the Inno installer. Must run BEFORE the
+      # WinSparkle Ed25519 sign step below: WinSparkle hashes the final
+      # bytes of the .exe to produce the appcast signature, so signing
+      # after WinSparkle would make existing 1.11.x installs reject the
+      # update.
+      - name: Code-sign installer (SSL.com eSigner)
+        uses: sslcom/esigner-codesign@b7f8ff36fc0de8690fbbab8e5b4421d29802f747
+        with:
+          command: sign
+          username: ${{ secrets.ESIGNER_USERNAME }}
+          password: ${{ secrets.ESIGNER_PASSWORD }}
+          credential_id: ${{ secrets.ESIGNER_CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ESIGNER_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}/Traktor-${{ env.VERSION }}.exe
+          override: 'true'
+          malware_block: 'true'
+          environment_name: 'PROD'
+
+      - name: Verify installer signature
+        shell: pwsh
+        env:
+          EXPECTED_SUBJECT_REGEX: 'CN=Servmask Inc\.'
+        run: |
+          $installer = "Traktor-$env:VERSION.exe"
+          & $env:SIGNTOOL_EXE verify /pa /v $installer
+          if ($LASTEXITCODE -ne 0) { throw "signtool verify failed for $installer" }
+
+          $sig = Get-AuthenticodeSignature $installer
+          if ($sig.Status -ne 'Valid') {
+              throw "Authenticode status: $($sig.Status) - $($sig.StatusMessage)"
+          }
+          $subject = $sig.SignerCertificate.Subject
+          if ($subject -notmatch $env:EXPECTED_SUBJECT_REGEX) {
+              throw "Unexpected signer subject: '$subject' (expected match against '$env:EXPECTED_SUBJECT_REGEX')"
+          }
+          Write-Host "Signer OK: $subject"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
