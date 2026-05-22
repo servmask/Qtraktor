@@ -428,6 +428,20 @@ jobs:
           # suffix for end-user friendliness on Windows.
           Copy-Item "build\_deps\winsparkle-src\COPYING" -Destination "build\WinSparkle-LICENSE.txt"
 
+      # signtool.exe ships with the Windows SDK on windows-2022 but isn't
+      # on PATH. Resolve the newest x64 build once and export to
+      # $GITHUB_ENV so both verify steps below can reuse it.
+      - name: Locate signtool
+        shell: pwsh
+        run: |
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+                      Where-Object { $_.DirectoryName -match '\\x64\\?$' } |
+                      Sort-Object { [Version]($_.VersionInfo.FileVersion -replace '[^\d.].*$','') } -Descending |
+                      Select-Object -First 1 -ExpandProperty FullName
+          if (-not $signtool) { throw "signtool.exe not found under Windows Kits" }
+          Write-Host "Resolved signtool: $signtool"
+          "SIGNTOOL_EXE=$signtool" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       # Authenticode-sign the inner Traktor.exe before Inno Setup packages
       # it. SmartScreen evaluates the entry-point binary the user actually
       # launches after install, so leaving this unsigned (signing only the
@@ -451,17 +465,24 @@ jobs:
 
       - name: Verify Traktor.exe signature
         shell: pwsh
+        env:
+          # Anchor on CN so an unexpected SSL.com EV-signed binary issued
+          # to a different org would fail the run even though signtool
+          # /pa would still call the chain valid.
+          EXPECTED_SUBJECT_REGEX: 'CN=Servmask Inc\.'
         run: |
-          # signtool.exe ships with the Windows SDK on windows-2022 but
-          # isn't on PATH. Pick the newest x64 build under Windows Kits.
-          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
-                      Where-Object { $_.DirectoryName -match '\\x64\\?$' } |
-                      Sort-Object { [Version]($_.VersionInfo.FileVersion -replace '[^\d.].*$','') } -Descending |
-                      Select-Object -First 1 -ExpandProperty FullName
-          if (-not $signtool) { throw "signtool.exe not found under Windows Kits" }
-          Write-Host "Using $signtool"
-          & $signtool verify /pa /v build\Traktor.exe
-          if ($LASTEXITCODE -ne 0) { throw "Signature verification failed for build\Traktor.exe" }
+          & $env:SIGNTOOL_EXE verify /pa /v build\Traktor.exe
+          if ($LASTEXITCODE -ne 0) { throw "signtool verify failed for build\Traktor.exe" }
+
+          $sig = Get-AuthenticodeSignature build\Traktor.exe
+          if ($sig.Status -ne 'Valid') {
+              throw "Authenticode status: $($sig.Status) - $($sig.StatusMessage)"
+          }
+          $subject = $sig.SignerCertificate.Subject
+          if ($subject -notmatch $env:EXPECTED_SUBJECT_REGEX) {
+              throw "Unexpected signer subject: '$subject' (expected match against '$env:EXPECTED_SUBJECT_REGEX')"
+          }
+          Write-Host "Signer OK: $subject"
 
       - name: Install Inno Setup 6
         shell: pwsh
@@ -549,16 +570,22 @@ jobs:
 
       - name: Verify installer signature
         shell: pwsh
+        env:
+          EXPECTED_SUBJECT_REGEX: 'CN=Servmask Inc\.'
         run: |
-          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
-                      Where-Object { $_.DirectoryName -match '\\x64\\?$' } |
-                      Sort-Object { [Version]($_.VersionInfo.FileVersion -replace '[^\d.].*$','') } -Descending |
-                      Select-Object -First 1 -ExpandProperty FullName
-          if (-not $signtool) { throw "signtool.exe not found under Windows Kits" }
           $installer = "Traktor-$env:VERSION.exe"
-          Write-Host "Using $signtool"
-          & $signtool verify /pa /v $installer
-          if ($LASTEXITCODE -ne 0) { throw "Signature verification failed for $installer" }
+          & $env:SIGNTOOL_EXE verify /pa /v $installer
+          if ($LASTEXITCODE -ne 0) { throw "signtool verify failed for $installer" }
+
+          $sig = Get-AuthenticodeSignature $installer
+          if ($sig.Status -ne 'Valid') {
+              throw "Authenticode status: $($sig.Status) - $($sig.StatusMessage)"
+          }
+          $subject = $sig.SignerCertificate.Subject
+          if ($subject -notmatch $env:EXPECTED_SUBJECT_REGEX) {
+              throw "Unexpected signer subject: '$subject' (expected match against '$env:EXPECTED_SUBJECT_REGEX')"
+          }
+          Write-Host "Signer OK: $subject"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
