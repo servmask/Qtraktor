@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.2](https://github.com/servmask/Qtraktor/compare/v1.11.1...v1.11.2) (2026-05-22)
+
+
+### Bug Fixes
+
+* **windows:** ship Authenticode-signed installer to users ([#55](https://github.com/servmask/Qtraktor/issues/55)) ([ac3da65](https://github.com/servmask/Qtraktor/commit/ac3da65fd7705afb31cc06af70f7330459fe799e))
+
 ## [1.11.1](https://github.com/servmask/Qtraktor/compare/v1.11.0...v1.11.1) (2026-05-12)
 
 
