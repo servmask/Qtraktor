@@ -11,9 +11,10 @@ env:
 jobs:
   build-macos:
     # Qt 6.8 from install-qt-action ships universal (arm64+x86_64) frameworks.
-    # We build on two runners to get native-arch OpenSSL from Homebrew, then
-    # lipo-merge only the Traktor binary and OpenSSL dylibs. Qt frameworks
-    # are already universal and copied as-is from the arm64 build.
+    # We build on two runners to lipo-merge only the native-arch Traktor binary;
+    # Qt frameworks are already universal and copied as-is from the arm64 build.
+    # (AES-256 decryption uses vendored tiny-AES-c, statically linked into the
+    # Traktor binary, so there are no longer any crypto dylibs to merge.)
     strategy:
       matrix:
         include:
@@ -38,13 +39,11 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: brew install openssl pkg-config
+        run: brew install pkg-config
 
       - name: Build
         run: |
-          SSL_PREFIX="$(brew --prefix openssl)"
           cmake -B build -DCMAKE_BUILD_TYPE=Release \
-            -DOPENSSL_ROOT_DIR="$SSL_PREFIX" \
             -DBUILD_TESTING=OFF
           cmake --build build -j"$(sysctl -n hw.ncpu)"
 
@@ -70,16 +69,13 @@ jobs:
         if: matrix.arch == 'arm64'
         run: tar -cf Traktor-arm64.app.tar -C build Traktor.app
 
-      - name: Archive binary only (x86_64 - just the executable and OpenSSL)
+      - name: Archive binary only (x86_64 - just the executable)
         if: matrix.arch == 'x86_64'
         run: |
-          # Only archive files that need lipo merge (Traktor binary + OpenSSL)
+          # Only the Traktor binary needs lipo merge; crypto is statically
+          # linked (tiny-AES-c) and Qt frameworks are already universal.
           mkdir -p x86_64-binaries
           cp build/Traktor.app/Contents/MacOS/Traktor x86_64-binaries/
-          # Copy OpenSSL dylibs from Homebrew (native x86_64)
-          SSL_PREFIX="$(brew --prefix openssl)"
-          cp "$SSL_PREFIX/lib/libssl"*.dylib x86_64-binaries/ 2>/dev/null || true
-          cp "$SSL_PREFIX/lib/libcrypto"*.dylib x86_64-binaries/ 2>/dev/null || true
           tar -cf Traktor-x86_64-binaries.tar -C x86_64-binaries .
 
       - name: Upload artifact
@@ -135,17 +131,6 @@ jobs:
             arm64/Traktor.app/Contents/MacOS/Traktor \
             x86_64-bin/Traktor \
             -output Universal-Traktor.app/Contents/MacOS/Traktor
-
-          # Lipo-merge OpenSSL dylibs
-          for dylib in libssl.3.dylib libcrypto.3.dylib; do
-            arm_file="arm64/Traktor.app/Contents/Frameworks/$dylib"
-            intel_file="x86_64-bin/$dylib"
-            if [ -f "$arm_file" ] && [ -f "$intel_file" ]; then
-              echo "Merging: Contents/Frameworks/$dylib"
-              lipo -create "$arm_file" "$intel_file" \
-                -output "Universal-Traktor.app/Contents/Frameworks/$dylib"
-            fi
-          done
 
       - name: Import signing certs and notarization API key
         env:
@@ -380,12 +365,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\vcpkg\installed
-          key: vcpkg-windows-msvc2022-openssl-zlib
+          key: vcpkg-windows-msvc2022-zlib
           restore-keys: |
             vcpkg-windows-msvc2022-
 
-      - name: Install OpenSSL and zlib
-        run: vcpkg install openssl:x64-windows zlib:x64-windows
+      - name: Install zlib
+        run: vcpkg install zlib:x64-windows
 
       - name: Build
         shell: cmd
@@ -399,15 +384,16 @@ jobs:
           # Bundle Qt runtime DLLs
           windeployqt build\Traktor.exe
 
-          # Bundle the OpenSSL + zlib runtime DLLs from vcpkg. Names follow
+          # Bundle the zlib runtime DLL from vcpkg. The name follows
           # upstream OUTPUT_NAME conventions, not the package name:
-          #   libssl-3-x64.dll, libcrypto-3-x64.dll  (OpenSSL)
-          #   z.dll                                  (zlib - OUTPUT_NAME "z")
+          #   z.dll  (zlib - OUTPUT_NAME "z")
           # Glob the version suffixes so port revisions don't break the bundle.
+          # (AES-256 decryption is provided by vendored tiny-AES-c, statically
+          # linked into Traktor.exe, so no OpenSSL DLLs are needed.)
           $vcpkgBin = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin"
           Write-Host "vcpkg bin contents:"
           Get-ChildItem $vcpkgBin | Format-Table Name,Length
-          foreach ($pattern in @("libssl-*.dll", "libcrypto-*.dll", "z*.dll")) {
+          foreach ($pattern in @("z*.dll")) {
               $hits = Get-ChildItem $vcpkgBin -Filter $pattern
               if (-not $hits) { throw "No DLL matched '$pattern' in $vcpkgBin" }
               $hits | Copy-Item -Destination build\
@@ -673,7 +659,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake libgl1-mesa-dev libssl-dev zlib1g-dev pkg-config libfuse2
+          sudo apt-get install -y cmake libgl1-mesa-dev zlib1g-dev pkg-config libfuse2
 
       - name: Build
         run: |

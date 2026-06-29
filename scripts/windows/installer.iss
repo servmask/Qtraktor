@@ -6,9 +6,10 @@
 ;            /O. /F"Traktor-<tag>" scripts\windows\installer.iss
 ;
 ; SourceDir must already contain everything to ship next to Traktor.exe:
-; Qt runtime DLLs (windeployqt output), libssl-*.dll, libcrypto-*.dll,
-; z*.dll, WinSparkle.dll, and file.ico. The CMake POST_BUILD step in
-; CMakeLists.txt already deposits WinSparkle.dll into build\.
+; Qt runtime DLLs (windeployqt output), z*.dll, WinSparkle.dll, and
+; file.ico. The CMake POST_BUILD step in CMakeLists.txt already deposits
+; WinSparkle.dll into build\. (AES-256 decryption is provided by vendored
+; tiny-AES-c, statically linked into Traktor.exe, so no OpenSSL DLLs ship.)
 
 #ifndef AppVersion
   #define AppVersion "0.0.0-dev"

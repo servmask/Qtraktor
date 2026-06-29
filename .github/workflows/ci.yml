@@ -72,7 +72,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake libgl1-mesa-dev libssl-dev zlib1g-dev pkg-config libfuse2
+          sudo apt-get install -y cmake libgl1-mesa-dev zlib1g-dev pkg-config libfuse2
 
       - name: Build
         run: |
@@ -153,13 +153,11 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: brew install openssl pkg-config
+        run: brew install pkg-config
 
       - name: Build
         run: |
-          SSL_PREFIX="$(brew --prefix openssl)"
-          cmake -B build -DCMAKE_BUILD_TYPE=Release \
-            -DOPENSSL_ROOT_DIR="$SSL_PREFIX"
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build -j"$(sysctl -n hw.ncpu)"
 
       - name: Run tests
@@ -269,12 +267,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\vcpkg\installed
-          key: vcpkg-windows-msvc2022-openssl-zlib
+          key: vcpkg-windows-msvc2022-zlib
           restore-keys: |
             vcpkg-windows-msvc2022-
 
-      - name: Install OpenSSL and zlib
-        run: vcpkg install openssl:x64-windows zlib:x64-windows
+      - name: Install zlib
+        run: vcpkg install zlib:x64-windows
 
       - name: Build
         shell: cmd
@@ -303,15 +301,16 @@ jobs:
           # smoke test can resolve the import at process load.
           Copy-Item build\WinSparkle.dll -Destination dist\
 
-          # Bundle the OpenSSL + zlib runtime DLLs from vcpkg. Names follow
+          # Bundle the zlib runtime DLL from vcpkg. The name follows
           # upstream OUTPUT_NAME conventions, not the package name:
-          #   libssl-3-x64.dll, libcrypto-3-x64.dll  (OpenSSL)
-          #   z.dll                                  (zlib - OUTPUT_NAME "z")
+          #   z.dll  (zlib - OUTPUT_NAME "z")
           # Glob the version suffixes so port revisions don't break the bundle.
+          # (AES-256 decryption is provided by vendored tiny-AES-c, statically
+          # linked into Traktor.exe, so no OpenSSL DLLs are needed.)
           $vcpkgBin = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin"
           Write-Host "vcpkg bin contents:"
           Get-ChildItem $vcpkgBin | Format-Table Name,Length
-          foreach ($pattern in @("libssl-*.dll", "libcrypto-*.dll", "z*.dll")) {
+          foreach ($pattern in @("z*.dll")) {
               $hits = Get-ChildItem $vcpkgBin -Filter $pattern
               if (-not $hits) { throw "No DLL matched '$pattern' in $vcpkgBin" }
               $hits | Copy-Item -Destination dist\
