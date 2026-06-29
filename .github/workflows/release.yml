@@ -17,7 +17,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: macos-latest
+          # Pinned to macos-15 (Sequoia): macos-latest moved to macOS 26
+          # (Tahoe), whose SDK dropped the legacy AGL framework that Qt 6.8's
+          # CMake config still links via Qt6::Gui ("ld: framework 'AGL' not
+          # found"). macos-15-intel is the x86_64 counterpart.
+          - runner: macos-15
             arch: arm64
           - runner: macos-15-intel
             arch: x86_64
@@ -86,7 +90,9 @@ jobs:
 
   package-macos:
     needs: build-macos
-    runs-on: macos-latest
+    # Pinned to macos-15 (Sequoia) for parity with the build job; avoids the
+    # macOS 26 (Tahoe) toolchain on the codesign/notarize/pkgbuild path.
+    runs-on: macos-15
     steps:
       # Sparse checkout up-front: scripts/macos-pkg/ has entitlements.plist
       # (codesign step) and pkgbuild scripts/resources (PKG step);

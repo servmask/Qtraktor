@@ -137,7 +137,10 @@ jobs:
 
   build-test-macos:
     name: Build & Test (macOS)
-    runs-on: macos-latest
+    # Pinned to macos-15 (Sequoia): macos-latest moved to macOS 26 (Tahoe),
+    # whose SDK dropped the legacy AGL framework that Qt 6.8's CMake config
+    # still links via Qt6::Gui, causing "ld: framework 'AGL' not found".
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
