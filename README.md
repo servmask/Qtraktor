@@ -97,7 +97,7 @@ After registration, your AI agent can use Traktor as a tool - ask it "what's in 
 <summary><strong>macOS</strong></summary>
 
 ```bash
-brew install qt openssl pkg-config cmake
+brew install qt pkg-config cmake
 ```
 </details>
 
@@ -105,7 +105,7 @@ brew install qt openssl pkg-config cmake
 <summary><strong>Linux (Debian/Ubuntu)</strong></summary>
 
 ```bash
-sudo apt install cmake qt6-base-dev libgl1-mesa-dev libssl-dev zlib1g-dev pkg-config
+sudo apt install cmake qt6-base-dev libgl1-mesa-dev zlib1g-dev pkg-config
 ```
 </details>
 
@@ -114,15 +114,14 @@ sudo apt install cmake qt6-base-dev libgl1-mesa-dev libssl-dev zlib1g-dev pkg-co
 
 - Qt 6.8+ with MSVC kit (via [online installer](https://www.qt.io/download-qt-installer))
 - CMake (via [cmake.org](https://cmake.org/download/) or `winget install Kitware.CMake`)
-- vcpkg for OpenSSL: `vcpkg install openssl`
+- vcpkg for zlib: `vcpkg install zlib`
 </details>
 
 ### Build
 
 ```bash
 # macOS
-cmake -B build -DCMAKE_BUILD_TYPE=Release \
-  -DOPENSSL_ROOT_DIR="$(brew --prefix openssl)"
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(sysctl -n hw.ncpu)
 
 # Linux

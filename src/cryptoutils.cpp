@@ -6,7 +6,9 @@
 #include <bzlib.h>
 #include <cstring>
 
-#include <openssl/evp.h>
+extern "C" {
+#include "aes.h"
+}
 
 #ifndef AES_BLOCK_SIZE
 #define AES_BLOCK_SIZE 16
@@ -267,51 +269,47 @@ QByteArray CryptoUtils::decryptString(const QByteArray &encryptedData, const QSt
     QByteArray iv = encryptedData.left(ivLength);
     QByteArray ciphertext = encryptedData.mid(ivLength);
 
+    // AES-CBC requires a non-empty ciphertext whose length is a multiple of the
+    // block size. tiny-AES-c has no length validation, so guard it here.
+    if (ciphertext.isEmpty() || (ciphertext.size() % AES_BLOCK_SIZE) != 0) {
+        if (errorMsg)
+            *errorMsg = "Invalid ciphertext length (not a multiple of AES block size)";
+        return {};
+    }
+
+    // Key derivation matches All-in-One WP Migration: SHA1(password) truncated to
+    // 16 bytes, then zero-extended to a 32-byte AES-256 key.
     QByteArray passwordBytes = password.toUtf8();
     QByteArray keyHash = QCryptographicHash::hash(passwordBytes, QCryptographicHash::Sha1);
-    QByteArray key16 = keyHash.left(ivLength);
-    QByteArray key32 = key16;
+    QByteArray key32 = keyHash.left(ivLength);
     key32.append(QByteArray(16, '\0'));
 
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if (!ctx) {
-        if (errorMsg)
-            *errorMsg = "Failed to create cipher context";
-        return {};
-    }
+    // tiny-AES-c decrypts in place; ciphertext is a private mutable copy here.
+    AES_ctx ctx;
+    AES_init_ctx_iv(&ctx, reinterpret_cast<const uint8_t *>(key32.constData()),
+                    reinterpret_cast<const uint8_t *>(iv.constData()));
+    AES_CBC_decrypt_buffer(&ctx, reinterpret_cast<uint8_t *>(ciphertext.data()),
+                           static_cast<size_t>(ciphertext.size()));
 
-    if (EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, reinterpret_cast<const unsigned char *>(key32.data()),
-                           reinterpret_cast<const unsigned char *>(iv.data())) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
-        if (errorMsg)
-            *errorMsg = "Failed to initialize decryption";
-        return {};
-    }
-
-    // Decrypt
-    QByteArray plaintext;
-    plaintext.resize(ciphertext.size() + AES_BLOCK_SIZE);
-    int outlen = 0;
-    int finalLen = 0;
-
-    if (EVP_DecryptUpdate(ctx, reinterpret_cast<unsigned char *>(plaintext.data()), &outlen,
-                          reinterpret_cast<const unsigned char *>(ciphertext.data()), ciphertext.size()) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
-        if (errorMsg)
-            *errorMsg = "Decryption update failed";
-        return {};
-    }
-
-    if (EVP_DecryptFinal_ex(ctx, reinterpret_cast<unsigned char *>(plaintext.data()) + outlen, &finalLen) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
+    // Strip PKCS7 padding. tiny-AES-c does not handle padding (OpenSSL's
+    // EVP_DecryptFinal_ex did this before), so validate and remove it manually.
+    // A malformed pad almost always means the wrong password.
+    const int padLen = static_cast<unsigned char>(ciphertext.at(ciphertext.size() - 1));
+    if (padLen < 1 || padLen > AES_BLOCK_SIZE || padLen > ciphertext.size()) {
         if (errorMsg)
             *errorMsg = "Decryption finalization failed (wrong password?)";
         return {};
     }
+    for (qsizetype i = ciphertext.size() - padLen; i < ciphertext.size(); ++i) {
+        if (static_cast<unsigned char>(ciphertext.at(i)) != padLen) {
+            if (errorMsg)
+                *errorMsg = "Decryption finalization failed (wrong password?)";
+            return {};
+        }
+    }
 
-    EVP_CIPHER_CTX_free(ctx);
-    plaintext.resize(outlen + finalLen);
-    return plaintext;
+    ciphertext.truncate(ciphertext.size() - padLen);
+    return ciphertext;
 }
 
 QByteArray CryptoUtils::processFileContentWithPassword(const QByteArray &fileContent, bool isCompressed,

@@ -13,7 +13,6 @@ if(APPLE)
 endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
-find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
 
 # Vendored bzip2
@@ -34,6 +33,24 @@ else()
 endif()
 # Linux SHARED libraries (libtraktor-core.so) link bzip2; needs PIC.
 set_target_properties(bzip2 PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Vendored tiny-AES-c (AES-256-CBC decryption of encrypted .wpress archives).
+# Replaces the previous OpenSSL dependency. The AES_ctx struct layout depends
+# on the AES256/CBC defines, so they are PUBLIC: every target that compiles
+# cryptoutils.cpp must see the same configuration as aes.c. We deliberately do
+# NOT define ECB/CTR (they default to 1 upstream, leaving their code as unused
+# dead weight) because forcing CTR=0 as a public macro collides with the `CTR`
+# struct member in macOS CarbonCore headers pulled in by the .mm sources.
+add_library(tiny-aes STATIC vendor/tiny-aes-c/aes.c)
+target_include_directories(tiny-aes PUBLIC vendor/tiny-aes-c)
+target_compile_definitions(tiny-aes PUBLIC AES256=1 CBC=1)
+if(NOT MSVC)
+    target_compile_options(tiny-aes PRIVATE -w)
+else()
+    target_compile_options(tiny-aes PRIVATE /w)
+endif()
+# Linux SHARED libraries (libtraktor-core.so) link tiny-aes; needs PIC.
+set_target_properties(tiny-aes PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Application sources
 set(APP_SOURCES
@@ -127,10 +144,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(traktor-core PUBLIC src)
     target_link_libraries(traktor-core PUBLIC
         Qt6::Core
-        OpenSSL::SSL
-        OpenSSL::Crypto
         ZLIB::ZLIB
         bzip2
+        tiny-aes
     )
     set_target_properties(traktor-core PROPERTIES
         OUTPUT_NAME "traktor-core"
@@ -200,10 +216,9 @@ else()
         Qt6::Gui
         Qt6::Widgets
         Qt6::Network
-        OpenSSL::SSL
-        OpenSSL::Crypto
         ZLIB::ZLIB
         bzip2
+        tiny-aes
     )
 endif()
 
