@@ -291,6 +291,16 @@ QByteArray CryptoUtils::decryptString(const QByteArray &encryptedData, const QSt
     AES_CBC_decrypt_buffer(&ctx, reinterpret_cast<uint8_t *>(ciphertext.data()),
                            static_cast<size_t>(ciphertext.size()));
 
+    // Wipe key material (expanded round key + IV) from the stack now that
+    // decryption is done. OpenSSL's EVP_CIPHER_CTX_free used to do this
+    // implicitly. A volatile write loop prevents the compiler from eliding
+    // these stores as dead (a plain memset here could be optimized away).
+    {
+        volatile unsigned char *p = reinterpret_cast<volatile unsigned char *>(&ctx);
+        for (size_t i = 0; i < sizeof(ctx); ++i)
+            p[i] = 0;
+    }
+
     // Strip PKCS7 padding. tiny-AES-c does not handle padding (OpenSSL's
     // EVP_DecryptFinal_ex did this before), so validate and remove it manually.
     // A malformed pad almost always means the wrong password.
