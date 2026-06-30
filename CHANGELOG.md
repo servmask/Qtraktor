@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.3](https://github.com/servmask/Qtraktor/compare/v1.11.2...v1.11.3) (2026-06-30)
+
+
+### Improvements
+
+* **Smaller, leaner download.** Traktor no longer bundles the OpenSSL library — password-protected `.wpress` archives are now decrypted with a tiny, self-contained component built right into the app. This trims roughly 5 MB from the macOS download and removes an external dependency on every platform, with no change to how you open encrypted backups. ([#57](https://github.com/servmask/Qtraktor/issues/57))
+
 ## [1.11.2](https://github.com/servmask/Qtraktor/compare/v1.11.1...v1.11.2) (2026-05-22)
 
 
