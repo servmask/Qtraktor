@@ -1,4 +1,5 @@
 #include "clouddownloader.h"
+#include "megaaes.h"
 #include <QtTest>
 
 class TestCloudDownloader : public QObject
@@ -220,6 +221,65 @@ private slots:
     {
         QUrl url("https://mega.nz/#!FILENODE_NO_KEY_SEP");
         QVERIFY(!CloudDownloader::parseMegaUrl(url).valid);
+    }
+
+    // ── AES-128-CTR (Mega stream decryption) ───────────────────────────────
+    // NIST SP 800-38A F.5.1 CTR-AES128 test vector. CTR encrypt == decrypt, so a
+    // single xcrypt of the plaintext must yield the published ciphertext. This
+    // validates both the tiny-AES-c AES-128 core and megaaes.c's counter/keystream.
+    void testMegaCtr_nistVector()
+    {
+        const QByteArray key = QByteArray::fromHex("2b7e151628aed2a6abf7158809cf4f3c");
+        const QByteArray iv = QByteArray::fromHex("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff");
+        const QByteArray plain = QByteArray::fromHex("6bc1bee22e409f96e93d7e117393172a"
+                                                     "ae2d8a571e03ac9c9eb76fac45af8e51"
+                                                     "30c81c46a35ce411e5fbc1191a0a52ef"
+                                                     "f69f2445df4f9b17ad2b417be66c3710");
+        const QByteArray cipher = QByteArray::fromHex("874d6191b620e3261bef6864990db6ce"
+                                                      "9806f66b7970fdff8617187bb9fffdff"
+                                                      "5ae4df3edbd5d35e5b4f09020db03eab"
+                                                      "1e031dda2fbe03d1792170a0f3009cee");
+
+        QByteArray buf = plain;
+        mega_aes_ctr *ctx = mega_aes_ctr_new(reinterpret_cast<const uint8_t *>(key.constData()),
+                                             reinterpret_cast<const uint8_t *>(iv.constData()));
+        QVERIFY(ctx);
+        mega_aes_ctr_xcrypt(ctx, reinterpret_cast<uint8_t *>(buf.data()), static_cast<size_t>(buf.size()));
+        mega_aes_ctr_free(ctx);
+        QCOMPARE(buf.toHex(), cipher.toHex());
+    }
+
+    // Feeding the stream in arbitrary, non-block-aligned chunks (as QNetworkReply
+    // delivers them) must match the single-shot result. This is the property
+    // tiny-AES-c's own AES_CTR_xcrypt_buffer lacks (it restarts the keystream block
+    // on every call), and the reason CTR is reimplemented in megaaes.c.
+    void testMegaCtr_chunkedMatchesSingleShot()
+    {
+        const QByteArray key = QByteArray::fromHex("2b7e151628aed2a6abf7158809cf4f3c");
+        const QByteArray iv = QByteArray::fromHex("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff");
+        const QByteArray plain = QByteArray::fromHex("6bc1bee22e409f96e93d7e117393172a"
+                                                     "ae2d8a571e03ac9c9eb76fac45af8e51"
+                                                     "30c81c46a35ce411e5fbc1191a0a52ef"
+                                                     "f69f2445df4f9b17ad2b417be66c3710");
+        const QByteArray cipher = QByteArray::fromHex("874d6191b620e3261bef6864990db6ce"
+                                                      "9806f66b7970fdff8617187bb9fffdff"
+                                                      "5ae4df3edbd5d35e5b4f09020db03eab"
+                                                      "1e031dda2fbe03d1792170a0f3009cee");
+
+        QByteArray buf = plain;
+        mega_aes_ctr *ctx = mega_aes_ctr_new(reinterpret_cast<const uint8_t *>(key.constData()),
+                                             reinterpret_cast<const uint8_t *>(iv.constData()));
+        QVERIFY(ctx);
+        // Deliberately non-block-aligned split points that end mid-block.
+        const int splits[] = {1, 7, 20};
+        int off = 0;
+        for (int len : splits) {
+            mega_aes_ctr_xcrypt(ctx, reinterpret_cast<uint8_t *>(buf.data()) + off, static_cast<size_t>(len));
+            off += len;
+        }
+        mega_aes_ctr_xcrypt(ctx, reinterpret_cast<uint8_t *>(buf.data()) + off, static_cast<size_t>(buf.size() - off));
+        mega_aes_ctr_free(ctx);
+        QCOMPARE(buf.toHex(), cipher.toHex());
     }
 };
 

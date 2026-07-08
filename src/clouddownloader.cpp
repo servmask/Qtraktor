@@ -10,7 +10,8 @@
 #include <QRegularExpression>
 #include <QTemporaryFile>
 #include <QUrlQuery>
-#include <openssl/evp.h>
+#include <utility>
+#include "megaaes.h"
 
 CloudDownloader::CloudDownloader(QObject *parent) : QObject(parent), m_nam(new QNetworkAccessManager(this)) {}
 
@@ -180,7 +181,7 @@ QUrl CloudDownloader::normalizeUrl(const QUrl &url)
 void CloudDownloader::cleanupAes()
 {
     if (m_aesCtr) {
-        EVP_CIPHER_CTX_free(m_aesCtr);
+        mega_aes_ctr_free(m_aesCtr);
         m_aesCtr = nullptr;
     }
 }
@@ -204,7 +205,6 @@ void CloudDownloader::download(const QUrl &rawUrl)
 
     m_aborted = false;
     m_isMega = false;
-    m_decryptFailed = false;
     cleanupAes();
     cleanupTempFile(); // remove any leftover temp file from a previous download
 
@@ -339,11 +339,8 @@ void CloudDownloader::onMegaApiFinished()
     Q_ASSERT(m_megaCtx.iv.size() == 8);
     memcpy(ivBlock, m_megaCtx.iv.constData(), 8);
 
-    m_aesCtr = EVP_CIPHER_CTX_new();
-    if (!m_aesCtr ||
-        EVP_DecryptInit_ex(m_aesCtr, EVP_aes_128_ctr(), nullptr,
-                           reinterpret_cast<const unsigned char *>(m_megaCtx.aesKey.constData()), ivBlock) != 1) {
-        cleanupAes();
+    m_aesCtr = mega_aes_ctr_new(reinterpret_cast<const unsigned char *>(m_megaCtx.aesKey.constData()), ivBlock);
+    if (!m_aesCtr) {
         emit failed(tr("Failed to initialize AES decryption context."));
         return;
     }
@@ -396,27 +393,28 @@ void CloudDownloader::abort()
 
 void CloudDownloader::onReadyRead()
 {
-    if (!m_tempFile || !m_reply || m_decryptFailed)
+    if (!m_tempFile || !m_reply)
         return;
 
-    const QByteArray chunk = m_reply->readAll();
+    QByteArray chunk = m_reply->readAll();
     if (chunk.isEmpty())
         return;
 
-    if (m_isMega && m_aesCtr) {
-        QByteArray plain(chunk.size() + EVP_MAX_BLOCK_LENGTH, '\0');
-        int outLen = 0;
-        if (EVP_DecryptUpdate(m_aesCtr, reinterpret_cast<unsigned char *>(plain.data()), &outLen,
-                              reinterpret_cast<const unsigned char *>(chunk.constData()),
-                              static_cast<int>(chunk.size())) != 1) {
-            m_decryptFailed = true;
-            return; // onFinished() will emit failed() and clean up
-        }
-        plain.resize(outLen);
-        m_tempFile->write(plain);
-    } else {
-        m_tempFile->write(chunk);
-    }
+    writeChunk(std::move(chunk));
+}
+
+// AES-128-CTR is a stream cipher: output length equals input length, decryption
+// never fails, and the keystream carries across calls, so we decrypt each chunk in
+// place. For non-Mega downloads the bytes are written through unchanged.
+void CloudDownloader::writeChunk(QByteArray data)
+{
+    if (!m_tempFile)
+        return;
+
+    if (m_isMega && m_aesCtr)
+        mega_aes_ctr_xcrypt(m_aesCtr, reinterpret_cast<unsigned char *>(data.data()), static_cast<size_t>(data.size()));
+
+    m_tempFile->write(data);
 }
 
 void CloudDownloader::onDownloadProgress(qint64 received, qint64 total)
@@ -437,29 +435,14 @@ void CloudDownloader::onFinished()
         return;
     }
 
-    // Flush any remaining buffered data (before checking for errors)
-    if (m_tempFile && m_reply && !m_decryptFailed)
-        m_tempFile->write(m_reply->readAll());
+    // Flush any remaining buffered data (before checking for errors). writeChunk()
+    // decrypts it in place for Mega. CTR has no final block, so there is nothing to
+    // finalize; just release the context once the stream is drained.
+    if (m_tempFile && m_reply)
+        writeChunk(m_reply->readAll());
 
-    if (m_decryptFailed) {
-        m_reply->deleteLater();
-        m_reply = nullptr;
+    if (m_isMega && m_aesCtr)
         cleanupAes();
-        cleanupTempFile();
-        emit failed(tr("AES-128-CTR decryption failed mid-stream. "
-                       "The Mega link may be corrupt or the key is incorrect."));
-        return;
-    }
-
-    // Finalize CTR context (no padding in CTR mode, but required by OpenSSL API)
-    if (m_isMega && m_aesCtr) {
-        unsigned char finalBuf[EVP_MAX_BLOCK_LENGTH];
-        int finalLen = 0;
-        EVP_DecryptFinal_ex(m_aesCtr, finalBuf, &finalLen);
-        if (m_tempFile && finalLen > 0)
-            m_tempFile->write(reinterpret_cast<const char *>(finalBuf), finalLen);
-        cleanupAes();
-    }
 
     const QNetworkReply::NetworkError err = m_reply->error();
     const QString errStr = m_reply->errorString();

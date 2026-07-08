@@ -1,7 +1,7 @@
 find_package(Qt6 REQUIRED COMPONENTS Test)
 
 # Static library to share compiled sources between app and tests.
-# Targets bzip2, tiny-aes, ZLIB are inherited from the parent scope.
+# Targets bzip2, tiny-aes, tiny-aes-mega, ZLIB are inherited from the parent scope.
 add_library(traktor_lib STATIC
     ../src/backupfile.cpp
     ../src/cryptoutils.cpp
@@ -30,6 +30,7 @@ target_link_libraries(traktor_lib PUBLIC
     ZLIB::ZLIB
     bzip2
     tiny-aes
+    tiny-aes-mega
 )
 
 qt_add_executable(tst_qtraktor

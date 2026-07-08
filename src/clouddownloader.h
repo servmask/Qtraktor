@@ -9,7 +9,7 @@ class QNetworkAccessManager;
 class QNetworkReply;
 class QTemporaryFile;
 
-struct evp_cipher_ctx_st; // forward-declare OpenSSL type without pulling in the header
+struct mega_aes_ctr; // opaque AES-128-CTR context (src/megaaes.h)
 
 // Downloads a .wpress file from a remote URL to a temp file, emitting progress
 // along the way. Supports direct HTTP(S) URLs and normalizes share links from
@@ -77,13 +77,13 @@ private:
     bool m_isMega = false;
     MegaCtx m_megaCtx;
     QNetworkReply *m_megaApiReply = nullptr;
-    evp_cipher_ctx_st *m_aesCtr = nullptr; // EVP_CIPHER_CTX, forward-declared
-    bool m_decryptFailed = false;
+    mega_aes_ctr *m_aesCtr = nullptr; // AES-128-CTR context (null unless Mega)
 
     // ── helpers ────────────────────────────────────────────────────────────
     static QString extractGoogleDriveId(const QUrl &url);
     void downloadMega(const QUrl &url);
     void startCdnDownload(const QString &cdnUrl);
+    void writeChunk(QByteArray data); // AES-128-CTR decrypt in place (if Mega), then write
     void cleanupAes();
     void cleanupTempFile(); // removes temp file from disk and frees the object
 };
