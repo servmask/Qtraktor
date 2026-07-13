@@ -29,6 +29,14 @@ private slots:
         QVERIFY(CloudDownloader::isRemoteUrl(QUrl("https://mega.nz/file/ABCD#KEY")));
     }
 
+    void testIsRemoteUrl_wetransfer()
+    {
+        // we.tl / wetransfer.com are https, so isRemoteUrl() returns true.
+        // download() routes them through the WeTransfer multi-step API flow.
+        QVERIFY(CloudDownloader::isRemoteUrl(QUrl("https://we.tl/t-abcdEFGH")));
+        QVERIFY(CloudDownloader::isRemoteUrl(QUrl("https://wetransfer.com/downloads/abc123/def456")));
+    }
+
     void testIsRemoteUrl_empty() { QVERIFY(!CloudDownloader::isRemoteUrl(QUrl())); }
 
     // ── normalizeUrl: Google Drive ─────────────────────────────────────────
@@ -108,6 +116,17 @@ private slots:
         // Mega must NOT be touched by normalizeUrl — download() handles it.
         QUrl input("https://mega.nz/file/ABCDEFGH#somekey");
         QCOMPARE(CloudDownloader::normalizeUrl(input), input);
+    }
+
+    void testNormalize_wetransfer_unchanged()
+    {
+        // WeTransfer is handled as a multi-step download inside download()
+        // (resolve short link, POST to API for direct_link), not via
+        // normalizeUrl(). URLs pass through unchanged.
+        QUrl shortUrl("https://we.tl/t-abcdEFGH");
+        QCOMPARE(CloudDownloader::normalizeUrl(shortUrl), shortUrl);
+        QUrl dlUrl("https://wetransfer.com/downloads/abc123/def456");
+        QCOMPARE(CloudDownloader::normalizeUrl(dlUrl), dlUrl);
     }
 
     // ── parseMegaUrl: new format ───────────────────────────────────────────

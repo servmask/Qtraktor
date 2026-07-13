@@ -164,12 +164,13 @@ void CloudDownloader::cleanupTempFile()
 
 void CloudDownloader::download(const QUrl &rawUrl)
 {
-    if (m_reply || m_megaApiReply || m_pcloudApiReply)
+    if (m_reply || m_megaApiReply || m_pcloudApiReply || m_wetransferReply)
         return;
 
     m_aborted = false;
     m_isMega = false;
     m_isPCloud = false;
+    m_isWeTransfer = false;
     cleanupAes();
     cleanupTempFile(); // remove any leftover temp file from a previous download
 
@@ -187,6 +188,12 @@ void CloudDownloader::download(const QUrl &rawUrl)
 
     if (host.endsWith(QLatin1String("pcloud.link")) || host == QLatin1String("my.pcloud.com")) {
         downloadPCloud(rawUrl);
+        return;
+    }
+
+    if (host == QLatin1String("we.tl") || host == QLatin1String("wetransfer.com") ||
+        host == QLatin1String("www.wetransfer.com")) {
+        downloadWeTransfer(rawUrl);
         return;
     }
 
@@ -273,6 +280,137 @@ void CloudDownloader::onPCloudApiFinished()
     }
 
     startCdnDownload(QStringLiteral("https://") + hosts.first().toString() + path);
+}
+
+// WeTransfer download (multi-step):
+//   1. we.tl short links redirect to wetransfer.com/downloads/{id}/{hash} —
+//      resolve that first (onWeTransferResolved) to read the id and hash.
+//   2. POST the transfer id + security hash to the WeTransfer API, which
+//      returns a short-lived direct_link to the file on its CDN.
+//   3. Download that direct_link via the normal streaming path.
+void CloudDownloader::downloadWeTransfer(const QUrl &url)
+{
+    m_isWeTransfer = true;
+
+    if (url.host().toLower() == QLatin1String("we.tl")) {
+        // Resolve the short link WITHOUT following the redirect, so we can read
+        // the transfer id + security hash from the Location header.
+        QNetworkRequest req(url);
+        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+        req.setHeader(QNetworkRequest::UserAgentHeader,
+                      QStringLiteral("Traktor/1.0 (WPRESS extractor; https://traktor.wp-migration.com)"));
+        m_wetransferReply = m_nam->get(req);
+        connect(m_wetransferReply, &QNetworkReply::finished, this, &CloudDownloader::onWeTransferResolved);
+        return;
+    }
+
+    // Already a wetransfer.com/downloads/... link — go straight to the API.
+    requestWeTransferLink(url);
+}
+
+void CloudDownloader::onWeTransferResolved()
+{
+    if (m_aborted) {
+        m_wetransferReply->deleteLater();
+        m_wetransferReply = nullptr;
+        return;
+    }
+
+    const QUrl redirect = m_wetransferReply->attribute(QNetworkRequest::RedirectionTargetAttribute).toUrl();
+    const QNetworkReply::NetworkError err = m_wetransferReply->error();
+    const QString errStr = m_wetransferReply->errorString();
+    const QUrl base = m_wetransferReply->url();
+    m_wetransferReply->deleteLater();
+    m_wetransferReply = nullptr;
+
+    if (!redirect.isValid()) {
+        if (err != QNetworkReply::NoError)
+            emit failed(tr("Could not resolve the WeTransfer link: %1").arg(errStr));
+        else
+            emit failed(tr("This WeTransfer link did not resolve to a download page."));
+        return;
+    }
+
+    requestWeTransferLink(base.resolved(redirect));
+}
+
+// Step 2 (WeTransfer): POST the transfer id + security hash to the API to
+// obtain the CDN direct_link.
+void CloudDownloader::requestWeTransferLink(const QUrl &downloadsUrl)
+{
+    // Path: /downloads/{transfer_id}/{security_hash}
+    //   or  /downloads/{transfer_id}/{recipient_id}/{security_hash}  (email links)
+    const QStringList parts = downloadsUrl.path().split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    if (parts.size() < 3 || parts.first() != QLatin1String("downloads")) {
+        emit failed(tr("Unrecognized WeTransfer link. Use the full share link "
+                       "(we.tl/\xe2\x80\xa6 or wetransfer.com/downloads/\xe2\x80\xa6)."));
+        return;
+    }
+
+    const QString transferId = parts.at(1);
+    QString recipientId;
+    QString securityHash;
+    if (parts.size() >= 4) {
+        recipientId = parts.at(2);
+        securityHash = parts.at(3);
+    } else {
+        securityHash = parts.at(2);
+    }
+
+    QJsonObject body;
+    body.insert(QStringLiteral("security_hash"), securityHash);
+    body.insert(QStringLiteral("intent"), QStringLiteral("entire_transfer"));
+    if (!recipientId.isEmpty())
+        body.insert(QStringLiteral("recipient_id"), recipientId);
+
+    QUrl apiUrl(QStringLiteral("https://wetransfer.com/api/v4/transfers/") + transferId +
+                QStringLiteral("/download"));
+    QNetworkRequest req(apiUrl);
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    req.setHeader(QNetworkRequest::UserAgentHeader,
+                  QStringLiteral("Traktor/1.0 (WPRESS extractor; https://traktor.wp-migration.com)"));
+    req.setRawHeader("Referer", downloadsUrl.toString(QUrl::RemoveQuery).toUtf8());
+
+    m_wetransferReply = m_nam->post(req, QJsonDocument(body).toJson(QJsonDocument::Compact));
+    connect(m_wetransferReply, &QNetworkReply::finished, this, &CloudDownloader::onWeTransferApiFinished);
+}
+
+// Step 3 (WeTransfer): parse direct_link and start the actual download.
+void CloudDownloader::onWeTransferApiFinished()
+{
+    if (m_aborted) {
+        m_wetransferReply->deleteLater();
+        m_wetransferReply = nullptr;
+        return;
+    }
+
+    const QByteArray response = m_wetransferReply->readAll();
+    const QNetworkReply::NetworkError err = m_wetransferReply->error();
+    const QString errStr = m_wetransferReply->errorString();
+    m_wetransferReply->deleteLater();
+    m_wetransferReply = nullptr;
+
+    const QJsonObject obj = QJsonDocument::fromJson(response).object();
+    const QString directLink = obj.value(QLatin1String("direct_link")).toString();
+
+    if (directLink.isEmpty()) {
+        // WeTransfer returns {"message": "..."} on expired/invalid transfers.
+        const QString msg = obj.value(QLatin1String("message")).toString();
+        if (!msg.isEmpty())
+            emit failed(tr("WeTransfer: %1").arg(msg));
+        else if (err != QNetworkReply::NoError)
+            emit failed(tr("WeTransfer API request failed: %1").arg(errStr));
+        else
+            emit failed(tr("This WeTransfer link has expired or is no longer available."));
+        return;
+    }
+
+    // Prefer the real filename from the CDN URL for the saved temp file.
+    const QString name = QFileInfo(QUrl(directLink).path()).fileName();
+    if (name.endsWith(QLatin1String(".wpress"), Qt::CaseInsensitive))
+        m_suggestedName = name;
+
+    startCdnDownload(directLink);
 }
 
 // Step 1 (Mega): parse URL, POST to Mega API to obtain the CDN download URL.
@@ -427,6 +565,11 @@ void CloudDownloader::startCdnDownload(const QString &cdnUrl)
 void CloudDownloader::abort()
 {
     m_aborted = true;
+    if (m_wetransferReply) {
+        m_wetransferReply->abort();
+        m_wetransferReply->deleteLater();
+        m_wetransferReply = nullptr;
+    }
     if (m_pcloudApiReply) {
         m_pcloudApiReply->abort();
         m_pcloudApiReply->deleteLater();
