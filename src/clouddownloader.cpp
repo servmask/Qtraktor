@@ -108,13 +108,15 @@ QUrl CloudDownloader::normalizeUrl(const QUrl &url)
     const QString host = url.host().toLower();
 
     // ── Google Drive ───────────────────────────────────────────────────────
+    // Google deprecated the drive.google.com/uc endpoint (returns 403).
+    // The current working endpoint is drive.usercontent.google.com/download.
     if (host == QLatin1String("drive.google.com")) {
         const QString id = extractGoogleDriveId(url);
         if (!id.isEmpty()) {
-            QUrl dl(QStringLiteral("https://drive.google.com/uc"));
+            QUrl dl(QStringLiteral("https://drive.usercontent.google.com/download"));
             QUrlQuery q;
-            q.addQueryItem(QStringLiteral("export"), QStringLiteral("download"));
             q.addQueryItem(QStringLiteral("id"), id);
+            q.addQueryItem(QStringLiteral("export"), QStringLiteral("download"));
             q.addQueryItem(QStringLiteral("confirm"), QStringLiteral("t"));
             dl.setQuery(q);
             return dl;
@@ -131,45 +133,7 @@ QUrl CloudDownloader::normalizeUrl(const QUrl &url)
         return dl;
     }
 
-    // ── OneDrive / 1drv.ms short links ────────────────────────────────────
-    if (host == QLatin1String("1drv.ms") || host.endsWith(QLatin1String(".1drv.ms"))) {
-        QUrlQuery q(url);
-        q.removeQueryItem(QStringLiteral("download"));
-        q.addQueryItem(QStringLiteral("download"), QStringLiteral("1"));
-        QUrl dl = url;
-        dl.setQuery(q);
-        return dl;
-    }
-    if (host == QLatin1String("onedrive.live.com")) {
-        QUrlQuery q(url);
-        q.removeQueryItem(QStringLiteral("download"));
-        q.addQueryItem(QStringLiteral("download"), QStringLiteral("1"));
-        QUrl dl = url;
-        dl.setQuery(q);
-        return dl;
-    }
-
-    // ── Box ────────────────────────────────────────────────────────────────
-    if (host == QLatin1String("app.box.com")) {
-        static const QRegularExpression boxShare(QStringLiteral("^/s/([^/]+)$"));
-        const QRegularExpressionMatch m = boxShare.match(url.path());
-        if (m.hasMatch())
-            return QUrl(QStringLiteral("https://app.box.com/shared/static/") + m.captured(1));
-    }
-
-    // ── pCloud ────────────────────────────────────────────────────────────
-    if (host == QLatin1String("u.pcloud.link")) {
-        const QString code = QUrlQuery(url).queryItemValue(QStringLiteral("code"));
-        if (!code.isEmpty()) {
-            QUrl dl(QStringLiteral("https://u.pcloud.link/publink/code"));
-            QUrlQuery q;
-            q.addQueryItem(QStringLiteral("code"), code);
-            q.addQueryItem(QStringLiteral("forcedownload"), QStringLiteral("1"));
-            dl.setQuery(q);
-            return dl;
-        }
-    }
-
+    // pCloud is handled inside download() (needs API call to resolve CDN URL).
     // Amazon S3, DigitalOcean Spaces, Google Cloud Storage, Azure Blob —
     // direct / pre-signed HTTPS URLs work as-is.
     // Mega is handled inside download(), not here (needs API call + decryption).
@@ -200,11 +164,12 @@ void CloudDownloader::cleanupTempFile()
 
 void CloudDownloader::download(const QUrl &rawUrl)
 {
-    if (m_reply || m_megaApiReply)
+    if (m_reply || m_megaApiReply || m_pcloudApiReply)
         return;
 
     m_aborted = false;
     m_isMega = false;
+    m_isPCloud = false;
     cleanupAes();
     cleanupTempFile(); // remove any leftover temp file from a previous download
 
@@ -220,7 +185,94 @@ void CloudDownloader::download(const QUrl &rawUrl)
         return;
     }
 
+    if (host.endsWith(QLatin1String("pcloud.link")) || host == QLatin1String("my.pcloud.com")) {
+        downloadPCloud(rawUrl);
+        return;
+    }
+
     startCdnDownload(normalizeUrl(rawUrl).toString());
+}
+
+// pCloud download: call the public API to resolve a CDN download URL from
+// the share code, then hand off to startCdnDownload().
+void CloudDownloader::downloadPCloud(const QUrl &url)
+{
+    m_isPCloud = true;
+
+    const QString code = QUrlQuery(url).queryItemValue(QStringLiteral("code"));
+    if (code.isEmpty()) {
+        emit failed(tr("Could not extract the share code from this pCloud URL. "
+                       "Make sure the link contains a \"code\" parameter."));
+        return;
+    }
+
+    QUrl apiUrl(QStringLiteral("https://api.pcloud.com/getpublinkdownload"));
+    QUrlQuery q;
+    q.addQueryItem(QStringLiteral("code"), code);
+    apiUrl.setQuery(q);
+
+    QNetworkRequest req(apiUrl);
+    req.setHeader(QNetworkRequest::UserAgentHeader,
+                  QStringLiteral("Traktor/1.0 (WPRESS extractor; https://traktor.wp-migration.com)"));
+
+    m_pcloudApiReply = m_nam->get(req);
+    connect(m_pcloudApiReply, &QNetworkReply::finished, this, &CloudDownloader::onPCloudApiFinished);
+}
+
+void CloudDownloader::onPCloudApiFinished()
+{
+    if (m_aborted) {
+        m_pcloudApiReply->deleteLater();
+        m_pcloudApiReply = nullptr;
+        return;
+    }
+
+    const QByteArray response = m_pcloudApiReply->readAll();
+    const QNetworkReply::NetworkError err = m_pcloudApiReply->error();
+    const QString errStr = m_pcloudApiReply->errorString();
+    m_pcloudApiReply->deleteLater();
+    m_pcloudApiReply = nullptr;
+
+    if (err != QNetworkReply::NoError) {
+        emit failed(tr("pCloud API request failed: %1").arg(errStr));
+        return;
+    }
+
+    const QJsonDocument doc = QJsonDocument::fromJson(response);
+    if (!doc.isObject()) {
+        emit failed(tr("Unexpected response from pCloud API."));
+        return;
+    }
+
+    const QJsonObject obj = doc.object();
+    const int result = obj.value(QLatin1String("result")).toInt(-1);
+
+    if (result != 0) {
+        QString reason;
+        switch (result) {
+        case 7002:
+            reason = tr("file not found or the share link has expired");
+            break;
+        case 7003:
+            reason = tr("file has been removed");
+            break;
+        default:
+            reason = tr("error code %1").arg(result);
+            break;
+        }
+        emit failed(tr("pCloud returned an error: %1.").arg(reason));
+        return;
+    }
+
+    const QJsonArray hosts = obj.value(QLatin1String("hosts")).toArray();
+    const QString path = obj.value(QLatin1String("path")).toString();
+
+    if (hosts.isEmpty() || path.isEmpty()) {
+        emit failed(tr("pCloud API response did not include a download URL."));
+        return;
+    }
+
+    startCdnDownload(QStringLiteral("https://") + hosts.first().toString() + path);
 }
 
 // Step 1 (Mega): parse URL, POST to Mega API to obtain the CDN download URL.
@@ -375,6 +427,11 @@ void CloudDownloader::startCdnDownload(const QString &cdnUrl)
 void CloudDownloader::abort()
 {
     m_aborted = true;
+    if (m_pcloudApiReply) {
+        m_pcloudApiReply->abort();
+        m_pcloudApiReply->deleteLater();
+        m_pcloudApiReply = nullptr;
+    }
     if (m_megaApiReply) {
         m_megaApiReply->abort();
         m_megaApiReply->deleteLater();

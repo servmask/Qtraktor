@@ -189,6 +189,6 @@ void DropOverlay::paintEvent(QPaintEvent *event)
         painter.setFont(font);
         painter.setPen(borderColor);
         QRect textRect(0, center.y() + 22, width(), 40);
-        painter.drawText(textRect, Qt::AlignHCenter | Qt::AlignTop, tr("Drop .wpress file or cloud link here"));
+        painter.drawText(textRect, Qt::AlignHCenter | Qt::AlignTop, tr("Drop .wpress file here"));
     }
 }

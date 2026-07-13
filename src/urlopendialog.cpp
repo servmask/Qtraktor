@@ -22,8 +22,8 @@ UrlOpenDialog::UrlOpenDialog(QWidget *parent) : QDialog(parent)
     auto *descLabel = new QLabel(tr("Paste a direct download link or share URL from any of the supported providers "
                                     "below. Traktor will download the file in the background \xe2\x80\x94 no manual "
                                     "download needed.\n\n"
-                                    "Supported: Google Drive \xe2\x80\xa2 Dropbox \xe2\x80\xa2 OneDrive \xe2\x80\xa2 "
-                                    "Box \xe2\x80\xa2 pCloud \xe2\x80\xa2 Mega \xe2\x80\xa2 Amazon S3 \xe2\x80\xa2 "
+                                    "Supported: Google Drive \xe2\x80\xa2 Dropbox \xe2\x80\xa2 "
+                                    "pCloud \xe2\x80\xa2 Mega \xe2\x80\xa2 Amazon S3 \xe2\x80\xa2 "
                                     "Google Cloud Storage \xe2\x80\xa2 Azure Blob Storage \xe2\x80\xa2 DigitalOcean "
                                     "Spaces \xe2\x80\xa2 Any direct HTTPS link"),
                                  this);
@@ -36,7 +36,7 @@ UrlOpenDialog::UrlOpenDialog(QWidget *parent) : QDialog(parent)
     m_urlEdit->setClearButtonEnabled(true);
     layout->addWidget(m_urlEdit);
 
-    auto *hintLabel = new QLabel(tr("<small>Tip: for Google Drive and OneDrive, use &quot;Share &rarr; Anyone with "
+    auto *hintLabel = new QLabel(tr("<small>Tip: for Google Drive, use &quot;Share &rarr; Anyone with "
                                     "the link&quot; before pasting. For Mega, copy the link from &quot;Share &rarr; "
                                     "Copy link&quot; &mdash; the decryption key after the # must be included. "
                                     "For Amazon S3, use a pre-signed URL or make the object public.</small>"),

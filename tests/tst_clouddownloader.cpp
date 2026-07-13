@@ -37,8 +37,8 @@ private slots:
     {
         QUrl input("https://drive.google.com/file/d/1abc123XYZ/view?usp=sharing");
         QUrl result = CloudDownloader::normalizeUrl(input);
-        QCOMPARE(result.host(), QString("drive.google.com"));
-        QCOMPARE(result.path(), QString("/uc"));
+        QCOMPARE(result.host(), QString("drive.usercontent.google.com"));
+        QCOMPARE(result.path(), QString("/download"));
         QUrlQuery q(result);
         QCOMPARE(q.queryItemValue("export"), QString("download"));
         QCOMPARE(q.queryItemValue("id"), QString("1abc123XYZ"));
@@ -84,49 +84,14 @@ private slots:
         QCOMPARE(QUrlQuery(result).queryItemValue("dl"), QString("1"));
     }
 
-    // ── normalizeUrl: OneDrive ─────────────────────────────────────────────
-
-    void testNormalize_onedrive_shortLink()
-    {
-        QUrl input("https://1drv.ms/u/s!AaBbCcDd");
-        QUrl result = CloudDownloader::normalizeUrl(input);
-        QCOMPARE(QUrlQuery(result).queryItemValue("download"), QString("1"));
-    }
-
-    void testNormalize_onedrive_liveLink()
-    {
-        QUrl input("https://onedrive.live.com/redir?resid=ABC&authkey=XYZ");
-        QUrl result = CloudDownloader::normalizeUrl(input);
-        QCOMPARE(QUrlQuery(result).queryItemValue("download"), QString("1"));
-    }
-
-    // ── normalizeUrl: Box ─────────────────────────────────────────────────
-
-    void testNormalize_box_sharedLink()
-    {
-        QUrl input("https://app.box.com/s/abc123xyz");
-        QUrl result = CloudDownloader::normalizeUrl(input);
-        QCOMPARE(result.path(), QString("/shared/static/abc123xyz"));
-        QCOMPARE(result.host(), QString("app.box.com"));
-    }
-
-    void testNormalize_box_otherPath_unchanged()
-    {
-        QUrl input("https://app.box.com/file/123456");
-        QUrl result = CloudDownloader::normalizeUrl(input);
-        QCOMPARE(result, input);
-    }
-
     // ── normalizeUrl: pCloud ───────────────────────────────────────────────
 
-    void testNormalize_pcloud()
+    void testNormalize_pcloud_unchanged()
     {
+        // pCloud is handled as a two-step download inside download() (API call
+        // to resolve CDN URL), not via normalizeUrl(). URLs pass through unchanged.
         QUrl input("https://u.pcloud.link/publink/show?code=xZaBcD");
-        QUrl result = CloudDownloader::normalizeUrl(input);
-        QCOMPARE(result.path(), QString("/publink/code"));
-        QUrlQuery q(result);
-        QCOMPARE(q.queryItemValue("code"), QString("xZaBcD"));
-        QCOMPARE(q.queryItemValue("forcedownload"), QString("1"));
+        QCOMPARE(CloudDownloader::normalizeUrl(input), input);
     }
 
     // ── normalizeUrl: pass-through providers ──────────────────────────────

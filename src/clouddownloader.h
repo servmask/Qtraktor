@@ -64,6 +64,7 @@ private slots:
     void onFinished();
     void onDownloadProgress(qint64 received, qint64 total);
     void onMegaApiFinished();
+    void onPCloudApiFinished();
 
 private:
     // ── generic download state ─────────────────────────────────────────────
@@ -79,9 +80,14 @@ private:
     QNetworkReply *m_megaApiReply = nullptr;
     mega_aes_ctr *m_aesCtr = nullptr; // AES-128-CTR context (null unless Mega)
 
+    // ── pCloud-specific state ─────────────────────────────────────────────
+    bool m_isPCloud = false;
+    QNetworkReply *m_pcloudApiReply = nullptr;
+
     // ── helpers ────────────────────────────────────────────────────────────
     static QString extractGoogleDriveId(const QUrl &url);
     void downloadMega(const QUrl &url);
+    void downloadPCloud(const QUrl &url);
     void startCdnDownload(const QString &cdnUrl);
     void writeChunk(QByteArray data); // AES-128-CTR decrypt in place (if Mega), then write
     void cleanupAes();
