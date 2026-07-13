@@ -19,14 +19,15 @@ UrlOpenDialog::UrlOpenDialog(QWidget *parent) : QDialog(parent)
     auto *titleLabel = new QLabel(tr("<b>Open backup from cloud storage or URL</b>"), this);
     layout->addWidget(titleLabel);
 
-    auto *descLabel = new QLabel(tr("Paste a direct download link or share URL from any of the supported providers "
-                                    "below. Traktor will download the file in the background \xe2\x80\x94 no manual "
-                                    "download needed.\n\n"
-                                    "Supported: Google Drive \xe2\x80\xa2 Dropbox \xe2\x80\xa2 "
-                                    "pCloud \xe2\x80\xa2 Mega \xe2\x80\xa2 WeTransfer \xe2\x80\xa2 Amazon S3 \xe2\x80\xa2 "
-                                    "Google Cloud Storage \xe2\x80\xa2 Azure Blob Storage \xe2\x80\xa2 DigitalOcean "
-                                    "Spaces \xe2\x80\xa2 Any direct HTTPS link"),
-                                 this);
+    auto *descLabel =
+        new QLabel(tr("Paste a direct download link or share URL from any of the supported providers "
+                      "below. Traktor will download the file in the background \xe2\x80\x94 no manual "
+                      "download needed.\n\n"
+                      "Supported: Google Drive \xe2\x80\xa2 Dropbox \xe2\x80\xa2 "
+                      "pCloud \xe2\x80\xa2 Mega \xe2\x80\xa2 WeTransfer \xe2\x80\xa2 Amazon S3 \xe2\x80\xa2 "
+                      "Google Cloud Storage \xe2\x80\xa2 Azure Blob Storage \xe2\x80\xa2 DigitalOcean "
+                      "Spaces \xe2\x80\xa2 Any direct HTTPS link"),
+                   this);
     descLabel->setWordWrap(true);
     descLabel->setStyleSheet(QStringLiteral("color: palette(mid);"));
     layout->addWidget(descLabel);

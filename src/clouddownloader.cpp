@@ -363,8 +363,7 @@ void CloudDownloader::requestWeTransferLink(const QUrl &downloadsUrl)
     if (!recipientId.isEmpty())
         body.insert(QStringLiteral("recipient_id"), recipientId);
 
-    QUrl apiUrl(QStringLiteral("https://wetransfer.com/api/v4/transfers/") + transferId +
-                QStringLiteral("/download"));
+    QUrl apiUrl(QStringLiteral("https://wetransfer.com/api/v4/transfers/") + transferId + QStringLiteral("/download"));
     QNetworkRequest req(apiUrl);
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     req.setHeader(QNetworkRequest::UserAgentHeader,
