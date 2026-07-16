@@ -104,10 +104,11 @@ private slots:
 
     // ── normalizeUrl: pass-through providers ──────────────────────────────
 
-    void testNormalize_s3_unchanged()
+    void testNormalize_directUrl_unchanged()
     {
-        QUrl input("https://mybucket.s3.amazonaws.com/backup.wpress"
-                   "?X-Amz-Signature=abc&X-Amz-Expires=3600");
+        // Direct / pre-signed HTTPS URLs (any host) must pass through untouched.
+        QUrl input("https://files.example.com/backup.wpress"
+                   "?token=abc&expires=3600");
         QCOMPARE(CloudDownloader::normalizeUrl(input), input);
     }
 

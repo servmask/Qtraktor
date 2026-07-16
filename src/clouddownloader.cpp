@@ -134,8 +134,7 @@ QUrl CloudDownloader::normalizeUrl(const QUrl &url)
     }
 
     // pCloud is handled inside download() (needs API call to resolve CDN URL).
-    // Amazon S3, DigitalOcean Spaces, Google Cloud Storage, Azure Blob —
-    // direct / pre-signed HTTPS URLs work as-is.
+    // DigitalOcean Spaces and other direct / pre-signed HTTPS URLs work as-is.
     // Mega is handled inside download(), not here (needs API call + decryption).
     return url;
 }
