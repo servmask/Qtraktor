@@ -75,6 +75,7 @@ private:
     QTemporaryFile *m_tempFile = nullptr;
     QString m_suggestedName;
     bool m_aborted = false;
+    bool m_writeFailed = false; // a QTemporaryFile::write() came up short (disk full / read-only)
 
     // ── Mega-specific state ────────────────────────────────────────────────
     bool m_isMega = false;

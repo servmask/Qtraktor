@@ -168,6 +168,7 @@ void CloudDownloader::download(const QUrl &rawUrl)
         return;
 
     m_aborted = false;
+    m_writeFailed = false;
     m_isMega = false;
     m_isPCloud = false;
     m_isWeTransfer = false;
@@ -607,13 +608,16 @@ void CloudDownloader::onReadyRead()
 // place. For non-Mega downloads the bytes are written through unchanged.
 void CloudDownloader::writeChunk(QByteArray data)
 {
-    if (!m_tempFile)
+    if (!m_tempFile || m_writeFailed)
         return;
 
     if (m_isMega && m_aesCtr)
         mega_aes_ctr_xcrypt(m_aesCtr, reinterpret_cast<unsigned char *>(data.data()), static_cast<size_t>(data.size()));
 
-    m_tempFile->write(data);
+    // A short write (disk full, read-only volume) must never be treated as success —
+    // record it and let onFinished() fail instead of opening a truncated .wpress.
+    if (m_tempFile->write(data) != data.size())
+        m_writeFailed = true;
 }
 
 void CloudDownloader::onDownloadProgress(qint64 received, qint64 total)
@@ -661,6 +665,13 @@ void CloudDownloader::onFinished()
         emit failed(tr("Server returned HTTP %1. Make sure the file is publicly "
                        "shared or use a direct download link.")
                         .arg(httpStatus));
+        return;
+    }
+
+    if (m_writeFailed) {
+        cleanupTempFile();
+        emit failed(tr("Could not write the download to disk. The temporary volume "
+                       "may be full or read-only."));
         return;
     }
 
