@@ -9,7 +9,12 @@ class TestCloudDownloader : public QObject
 private slots:
     // ── isRemoteUrl ───────────────────────────────────────────────────────
 
-    void testIsRemoteUrl_http() { QVERIFY(CloudDownloader::isRemoteUrl(QUrl("http://example.com/backup.wpress"))); }
+    void testIsRemoteUrl_http_rejected()
+    {
+        // Plain HTTP is rejected — downloads must be HTTPS so bytes can't be
+        // tampered with in transit.
+        QVERIFY(!CloudDownloader::isRemoteUrl(QUrl("http://example.com/backup.wpress")));
+    }
 
     void testIsRemoteUrl_https() { QVERIFY(CloudDownloader::isRemoteUrl(QUrl("https://example.com/backup.wpress"))); }
 

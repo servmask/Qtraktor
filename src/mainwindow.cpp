@@ -428,7 +428,7 @@ void MainWindow::setDownloadingState(bool downloading)
     m_downloading = downloading;
     ui->openBackupButton->setEnabled(!downloading);
     ui->openUrlButton->setEnabled(!downloading);
-    ui->extractBackupButton->setEnabled(!downloading);
+    ui->extractBackupButton->setEnabled(!downloading && !backupFilename.isEmpty());
     ui->clearButton->setVisible(!downloading && !backupFilename.isEmpty());
 }
 

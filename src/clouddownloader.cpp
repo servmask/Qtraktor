@@ -26,9 +26,10 @@ CloudDownloader::~CloudDownloader()
 
 bool CloudDownloader::isRemoteUrl(const QUrl &url)
 {
-    // Qt 6 removed FTP support from QNetworkAccessManager; only HTTP(S) accepted.
-    const QString scheme = url.scheme().toLower();
-    return scheme == QLatin1String("http") || scheme == QLatin1String("https");
+    // HTTPS only: downloads must be transport-encrypted so a network attacker
+    // cannot tamper with the backup bytes. (Qt 6 also removed FTP from
+    // QNetworkAccessManager, and plain http:// is intentionally rejected.)
+    return url.scheme().toLower() == QLatin1String("https");
 }
 
 QString CloudDownloader::extractGoogleDriveId(const QUrl &url)
