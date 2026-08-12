@@ -39,6 +39,7 @@ private slots:
     void onDownloadProgress(int percent);
     void onDownloadFinished(const QString &tempFilePath, const QString &suggestedName);
     void onDownloadFailed(const QString &errorMessage);
+    void cancelDownload();
     void openFromUrl();
     void installCliTool();
     void manageAgentIntegrations();

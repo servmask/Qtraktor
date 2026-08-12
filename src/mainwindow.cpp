@@ -45,6 +45,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(m_downloader, &CloudDownloader::finished, this, &MainWindow::onDownloadFinished);
     connect(m_downloader, &CloudDownloader::failed, this, &MainWindow::onDownloadFailed);
 
+    ui->cancelButton->setVisible(false);
+    connect(ui->cancelButton, &QPushButton::clicked, this, &MainWindow::cancelDownload);
+
     // Insert "Open from URL…" into the existing File menu (defined in mainwindow.ui),
     // right after the "Open backup" action so it appears as the second item.
     auto *openFromUrlAction = new QAction(tr("Open from &URL..."), this);
@@ -435,6 +438,23 @@ void MainWindow::onDownloadFailed(const QString &errorMessage)
     QMessageBox::warning(this, tr("Download Failed"), errorMessage);
 }
 
+void MainWindow::cancelDownload()
+{
+    if (!m_downloading || !m_downloader)
+        return;
+
+    m_downloader->abort(); // failed() is NOT emitted after abort(), so restore the UI here
+    setDownloadingState(false);
+    ui->progressBar->setRange(0, 100);
+    ui->progressBar->setVisible(false);
+    // Restore the previously-open file's label (if any); a cancelled download
+    // must not disturb a backup that was already loaded.
+    if (!backupFilename.isEmpty())
+        ui->dropZone->setFileName(QFileInfo(backupFilename).fileName());
+    else
+        ui->dropZone->setFileName(QString());
+}
+
 void MainWindow::openFromUrl()
 {
     if (isBusy())
@@ -452,6 +472,7 @@ void MainWindow::setDownloadingState(bool downloading)
     ui->openUrlButton->setEnabled(!downloading);
     ui->extractBackupButton->setEnabled(!downloading && !backupFilename.isEmpty());
     ui->clearButton->setVisible(!downloading && !backupFilename.isEmpty());
+    ui->cancelButton->setVisible(downloading);     // swap Clear ↔ Cancel while a download runs
     ui->actionClearFile->setEnabled(!downloading); // File → Clear File must not fire mid-download
 }
 
