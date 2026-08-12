@@ -750,5 +750,11 @@ void CloudDownloader::onFinished()
     if (cdBase.endsWith(QLatin1String(".wpress"), Qt::CaseInsensitive))
         m_suggestedName = cdBase;
 
-    emit finished(m_tempFile->fileName(), m_suggestedName);
+    // Hand the temp file to the caller: release our QTemporaryFile object
+    // (autoRemove is off, so the file stays on disk) and clear the member, so a
+    // later download() cannot delete the file the caller now owns.
+    const QString finalPath = m_tempFile->fileName();
+    delete m_tempFile;
+    m_tempFile = nullptr;
+    emit finished(finalPath, m_suggestedName);
 }

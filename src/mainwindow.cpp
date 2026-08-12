@@ -389,11 +389,10 @@ void MainWindow::openBackupFromUrl(const QUrl &url)
     if (!m_downloader || isBusy())
         return;
 
-    if (!m_pendingTempFile.isEmpty()) {
-        QFile::remove(m_pendingTempFile);
-        m_pendingTempFile.clear();
-    }
-
+    // NOTE: the previous cloud temp file is NOT removed here. Deleting it before
+    // the replacement download succeeds would break the currently-loaded backup
+    // if this new download is cancelled or fails. It is removed in
+    // onDownloadFinished() once the replacement is safely in hand.
     setDownloadingState(true);
     ui->dropZone->setFileName(tr("Downloading from %1\xe2\x80\xa6").arg(url.host()));
     ui->progressBar->setVisible(true);
@@ -418,6 +417,10 @@ void MainWindow::onDownloadFinished(const QString &tempFilePath, const QString &
     setDownloadingState(false);
     ui->progressBar->setRange(0, 100);
     ui->progressBar->setVisible(false);
+    // Only now that the new download succeeded is it safe to remove the previous
+    // cloud temp file — a cancelled/failed replacement keeps the old backup loaded.
+    if (!m_pendingTempFile.isEmpty() && m_pendingTempFile != tempFilePath)
+        QFile::remove(m_pendingTempFile);
     m_pendingTempFile = tempFilePath;
     openBackupFile(tempFilePath);
     ui->dropZone->setFileName(suggestedName);
