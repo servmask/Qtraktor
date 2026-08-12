@@ -84,11 +84,9 @@ private:
     mega_aes_ctr *m_aesCtr = nullptr; // AES-128-CTR context (null unless Mega)
 
     // ── pCloud-specific state ─────────────────────────────────────────────
-    bool m_isPCloud = false;
     QNetworkReply *m_pcloudApiReply = nullptr;
 
     // ── WeTransfer-specific state ─────────────────────────────────────────
-    bool m_isWeTransfer = false;
     QNetworkReply *m_wetransferReply = nullptr; // reused for redirect resolve, then API POST
 
     // ── helpers ────────────────────────────────────────────────────────────

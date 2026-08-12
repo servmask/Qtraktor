@@ -10,6 +10,7 @@
 #include <QRegularExpression>
 #include <QTemporaryFile>
 #include <QUrlQuery>
+#include <chrono>
 #include <utility>
 #include "megaaes.h"
 
@@ -170,8 +171,6 @@ void CloudDownloader::download(const QUrl &rawUrl)
     m_aborted = false;
     m_writeFailed = false;
     m_isMega = false;
-    m_isPCloud = false;
-    m_isWeTransfer = false;
     cleanupAes();
     cleanupTempFile(); // remove any leftover temp file from a previous download
 
@@ -187,7 +186,8 @@ void CloudDownloader::download(const QUrl &rawUrl)
         return;
     }
 
-    if (host.endsWith(QLatin1String("pcloud.link")) || host == QLatin1String("my.pcloud.com")) {
+    if (host == QLatin1String("pcloud.link") || host.endsWith(QLatin1String(".pcloud.link")) ||
+        host == QLatin1String("my.pcloud.com")) {
         downloadPCloud(rawUrl);
         return;
     }
@@ -205,8 +205,6 @@ void CloudDownloader::download(const QUrl &rawUrl)
 // the share code, then hand off to startCdnDownload().
 void CloudDownloader::downloadPCloud(const QUrl &url)
 {
-    m_isPCloud = true;
-
     const QString code = QUrlQuery(url).queryItemValue(QStringLiteral("code"));
     if (code.isEmpty()) {
         emit failed(tr("Could not extract the share code from this pCloud URL. "
@@ -223,6 +221,7 @@ void CloudDownloader::downloadPCloud(const QUrl &url)
     req.setHeader(QNetworkRequest::UserAgentHeader,
                   QStringLiteral("Traktor/1.0 (WPRESS extractor; https://traktor.wp-migration.com)"));
 
+    req.setTransferTimeout(std::chrono::seconds(30));
     m_pcloudApiReply = m_nam->get(req);
     connect(m_pcloudApiReply, &QNetworkReply::finished, this, &CloudDownloader::onPCloudApiFinished);
 }
@@ -291,8 +290,6 @@ void CloudDownloader::onPCloudApiFinished()
 //   3. Download that direct_link via the normal streaming path.
 void CloudDownloader::downloadWeTransfer(const QUrl &url)
 {
-    m_isWeTransfer = true;
-
     if (url.host().toLower() == QLatin1String("we.tl")) {
         // Resolve the short link WITHOUT following the redirect, so we can read
         // the transfer id + security hash from the Location header.
@@ -300,6 +297,7 @@ void CloudDownloader::downloadWeTransfer(const QUrl &url)
         req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
         req.setHeader(QNetworkRequest::UserAgentHeader,
                       QStringLiteral("Traktor/1.0 (WPRESS extractor; https://traktor.wp-migration.com)"));
+        req.setTransferTimeout(std::chrono::seconds(30));
         m_wetransferReply = m_nam->get(req);
         connect(m_wetransferReply, &QNetworkReply::finished, this, &CloudDownloader::onWeTransferResolved);
         return;
@@ -370,6 +368,7 @@ void CloudDownloader::requestWeTransferLink(const QUrl &downloadsUrl)
     req.setHeader(QNetworkRequest::UserAgentHeader,
                   QStringLiteral("Traktor/1.0 (WPRESS extractor; https://traktor.wp-migration.com)"));
     req.setRawHeader("Referer", downloadsUrl.toString(QUrl::RemoveQuery).toUtf8());
+    req.setTransferTimeout(std::chrono::seconds(30));
 
     m_wetransferReply = m_nam->post(req, QJsonDocument(body).toJson(QJsonDocument::Compact));
     connect(m_wetransferReply, &QNetworkReply::finished, this, &CloudDownloader::onWeTransferApiFinished);
@@ -445,6 +444,7 @@ void CloudDownloader::downloadMega(const QUrl &url)
     req.setHeader(QNetworkRequest::UserAgentHeader,
                   QStringLiteral("Traktor/1.0 (WPRESS extractor; https://traktor.wp-migration.com)"));
 
+    req.setTransferTimeout(std::chrono::seconds(30));
     m_isMega = true;
     m_megaApiReply = m_nam->post(req, body);
     connect(m_megaApiReply, &QNetworkReply::finished, this, &CloudDownloader::onMegaApiFinished);
@@ -541,6 +541,17 @@ void CloudDownloader::onMegaApiFinished()
 // Common path: open temp file and issue the GET for the CDN URL.
 void CloudDownloader::startCdnDownload(const QString &cdnUrl)
 {
+    const QUrl cdnQUrl(cdnUrl);
+
+    // Enforce HTTPS on the *resolved* URL too: the pCloud/Mega/WeTransfer APIs
+    // hand back a download URL, and a plaintext one would defeat the HTTPS-only
+    // guarantee applied at the front door (isRemoteUrl).
+    if (cdnQUrl.scheme().toLower() != QLatin1String("https")) {
+        emit failed(tr("The provider returned a non-HTTPS download URL, which was refused "
+                       "to keep the download safe from tampering."));
+        return;
+    }
+
     m_tempFile = new QTemporaryFile(QDir::tempPath() + QStringLiteral("/traktor-XXXXXX.wpress"), this);
     m_tempFile->setAutoRemove(false); // MainWindow takes ownership on success
     if (!m_tempFile->open()) {
@@ -550,11 +561,11 @@ void CloudDownloader::startCdnDownload(const QString &cdnUrl)
         return;
     }
 
-    const QUrl cdnQUrl(cdnUrl);
     QNetworkRequest req(cdnQUrl);
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     req.setHeader(QNetworkRequest::UserAgentHeader,
                   QStringLiteral("Traktor/1.0 (WPRESS extractor; https://traktor.wp-migration.com)"));
+    req.setTransferTimeout(std::chrono::seconds(30)); // don't wedge the UI on a stalled connection
 
     m_reply = m_nam->get(req);
     connect(m_reply, &QNetworkReply::readyRead, this, &CloudDownloader::onReadyRead);
@@ -562,29 +573,29 @@ void CloudDownloader::startCdnDownload(const QString &cdnUrl)
     connect(m_reply, &QNetworkReply::finished, this, &CloudDownloader::onFinished);
 }
 
+// QNetworkReply::abort() emits finished() synchronously, and our finished-slots
+// null the member pointer in their m_aborted branch — so aborting in place would
+// deleteLater() a pointer the slot just cleared (dereferencing a dangling member →
+// SIGSEGV). Disconnect first so the slot cannot re-enter, and clear the member
+// before abort()/deleteLater().
+static void killReply(QNetworkReply *&reply)
+{
+    if (!reply)
+        return;
+    QNetworkReply *r = reply;
+    reply = nullptr; // must precede abort(): abort() re-enters our slots
+    r->disconnect();
+    r->abort();
+    r->deleteLater();
+}
+
 void CloudDownloader::abort()
 {
     m_aborted = true;
-    if (m_wetransferReply) {
-        m_wetransferReply->abort();
-        m_wetransferReply->deleteLater();
-        m_wetransferReply = nullptr;
-    }
-    if (m_pcloudApiReply) {
-        m_pcloudApiReply->abort();
-        m_pcloudApiReply->deleteLater();
-        m_pcloudApiReply = nullptr;
-    }
-    if (m_megaApiReply) {
-        m_megaApiReply->abort();
-        m_megaApiReply->deleteLater();
-        m_megaApiReply = nullptr;
-    }
-    if (m_reply) {
-        m_reply->abort();
-        m_reply->deleteLater();
-        m_reply = nullptr;
-    }
+    killReply(m_wetransferReply);
+    killReply(m_pcloudApiReply);
+    killReply(m_megaApiReply);
+    killReply(m_reply);
     cleanupAes();
     cleanupTempFile(); // remove partial download from disk
 }
@@ -628,6 +639,30 @@ void CloudDownloader::onDownloadProgress(qint64 received, qint64 total)
         emit progress(-1);
 }
 
+// Extracts a filename from a Content-Disposition header value, or "" if absent.
+// Handles filename="x", bare filename=x, and RFC 5987 filename*=charset''pct-encoded.
+static QString filenameFromContentDisposition(const QByteArray &header)
+{
+    const QString value = QString::fromUtf8(header);
+    if (value.isEmpty())
+        return QString();
+
+    // RFC 5987 extended form takes precedence: filename*=UTF-8''percent-encoded
+    static const QRegularExpression extRe(QStringLiteral("filename\\*\\s*=\\s*[^']*'[^']*'([^;]+)"),
+                                          QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch m = extRe.match(value);
+    if (m.hasMatch())
+        return QUrl::fromPercentEncoding(m.captured(1).trimmed().toUtf8());
+
+    static const QRegularExpression re(QStringLiteral("filename\\s*=\\s*\"([^\"]*)\"|filename\\s*=\\s*([^;]+)"),
+                                       QRegularExpression::CaseInsensitiveOption);
+    m = re.match(value);
+    if (m.hasMatch())
+        return (m.captured(1).isEmpty() ? m.captured(2) : m.captured(1)).trimmed();
+
+    return QString();
+}
+
 void CloudDownloader::onFinished()
 {
     if (m_aborted) {
@@ -650,6 +685,7 @@ void CloudDownloader::onFinished()
     const QNetworkReply::NetworkError err = m_reply->error();
     const QString errStr = m_reply->errorString();
     const int httpStatus = m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QString cdName = filenameFromContentDisposition(m_reply->rawHeader("Content-Disposition"));
 
     m_reply->deleteLater();
     m_reply = nullptr;
@@ -701,6 +737,14 @@ void CloudDownloader::onFinished()
             }
         }
     }
+
+    // Prefer the server-provided filename when it names a .wpress — e.g. Google
+    // Drive serves the real name while the share URL path is just ".../view".
+    // Take the basename only, so a header can't smuggle path components into the
+    // display label.
+    const QString cdBase = QFileInfo(cdName).fileName();
+    if (cdBase.endsWith(QLatin1String(".wpress"), Qt::CaseInsensitive))
+        m_suggestedName = cdBase;
 
     emit finished(m_tempFile->fileName(), m_suggestedName);
 }

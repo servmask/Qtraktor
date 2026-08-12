@@ -1,5 +1,7 @@
 #include "clouddownloader.h"
 #include "megaaes.h"
+#include <QSignalSpy>
+#include <QTcpServer>
 #include <QtTest>
 
 class TestCloudDownloader : public QObject
@@ -270,6 +272,34 @@ private slots:
         mega_aes_ctr_xcrypt(ctx, reinterpret_cast<uint8_t *>(buf.data()) + off, static_cast<size_t>(buf.size() - off));
         mega_aes_ctr_free(ctx);
         QCOMPARE(buf.toHex(), cipher.toHex());
+    }
+
+    // ── abort() lifecycle ──────────────────────────────────────────────────
+
+    void testAbort_inFlightDoesNotCrash()
+    {
+        // Regression: abort() used to deleteLater() a member the finished-slot had
+        // already nulled — QNetworkReply::abort() emits finished() synchronously —
+        // which segfaulted. A local server that accepts the TCP connection but never
+        // completes the TLS handshake keeps a reply in flight so abort() exercises
+        // exactly that path.
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost, 0));
+
+        CloudDownloader dl;
+        QSignalSpy failedSpy(&dl, &CloudDownloader::failed);
+        QSignalSpy finishedSpy(&dl, &CloudDownloader::finished);
+
+        dl.download(QUrl(QStringLiteral("https://127.0.0.1:%1/backup.wpress").arg(server.serverPort())));
+        QTest::qWait(100); // let the request reach the in-flight state
+
+        dl.abort(); // must not crash (the regression was a SIGSEGV here)
+        QTest::qWait(100);
+
+        // Documented contract (clouddownloader.h): failed() is NOT emitted after
+        // abort(), and a successful finished() must never fire for an aborted download.
+        QCOMPARE(failedSpy.count(), 0);
+        QCOMPARE(finishedSpy.count(), 0);
     }
 };
 
