@@ -57,6 +57,7 @@ private:
     UpdateManager *m_updateManager = nullptr; // non-null on macOS and Windows; nullptr on Linux
     void showInGraphicalShell(const QString &pathIn);
     void setDownloadingState(bool downloading);
+    bool isBusy() const; // true while a download OR an extraction is running
 };
 
 #endif // MAINWINDOW_H

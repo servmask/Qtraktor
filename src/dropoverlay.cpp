@@ -94,34 +94,38 @@ void DropOverlay::dropEvent(QDropEvent *event)
     setHighlighted(false);
     const QMimeData *mime = event->mimeData();
 
-    // ── Primary path: text/uri-list ───────────────────────────────────────
-    if (mime->hasUrls()) {
-        const QList<QUrl> urls = mime->urls();
-        if (urls.count() == 1) {
-            const QUrl &url = urls.first();
-            const QString localFile = url.toLocalFile();
-            if (!localFile.isEmpty() && localFile.endsWith(QLatin1String(".wpress"), Qt::CaseInsensitive)) {
-                emit fileDropped(localFile);
-                event->acceptProposedAction();
-                return;
-            }
-            if (CloudDownloader::isRemoteUrl(url)) {
-                emit urlDropped(url);
-                event->acceptProposedAction();
-                return;
-            }
-        }
-    }
-
-    // ── Fallback: text/plain containing a URL ─────────────────────────────
-    // Handles cloud web-UI drags and preserves Mega #KEY fragments.
-    if (mime->hasText()) {
-        const QUrl url = urlFromPlainText(mime->text());
-        if (url.isValid()) {
-            emit urlDropped(url);
+    // ── Local .wpress file (text/uri-list) takes priority ─────────────────
+    if (mime->hasUrls() && mime->urls().count() == 1) {
+        const QString localFile = mime->urls().first().toLocalFile();
+        if (!localFile.isEmpty() && localFile.endsWith(QLatin1String(".wpress"), Qt::CaseInsensitive)) {
+            emit fileDropped(localFile);
             event->acceptProposedAction();
             return;
         }
+    }
+
+    // ── Remote URL: gather both candidates and pick the better one ────────
+    // text/uri-list strips URL fragments (RFC 2483), but Mega's decryption
+    // #KEY lives in the fragment — so prefer the text/plain candidate when it
+    // carries a fragment the uri-list one has lost. Otherwise uri-list wins.
+    QUrl uriListUrl;
+    if (mime->hasUrls() && mime->urls().count() == 1 && CloudDownloader::isRemoteUrl(mime->urls().first()))
+        uriListUrl = mime->urls().first();
+
+    const QUrl plainUrl = mime->hasText() ? urlFromPlainText(mime->text()) : QUrl();
+
+    QUrl chosen;
+    if (plainUrl.isValid() && !plainUrl.fragment().isEmpty() && uriListUrl.fragment().isEmpty())
+        chosen = plainUrl; // plain text preserves the fragment uri-list dropped
+    else if (uriListUrl.isValid())
+        chosen = uriListUrl;
+    else if (plainUrl.isValid())
+        chosen = plainUrl;
+
+    if (chosen.isValid()) {
+        emit urlDropped(chosen);
+        event->acceptProposedAction();
+        return;
     }
 
     event->ignore();

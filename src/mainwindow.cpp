@@ -121,6 +121,9 @@ MainWindow::~MainWindow()
 
 void MainWindow::openBackup()
 {
+    if (isBusy())
+        return;
+
     QSettings settings("com.servmask", "Traktor");
     QString lastDir = settings.value("lastOpenPath").toString();
 
@@ -148,8 +151,12 @@ void MainWindow::openBackup()
 
 void MainWindow::clearFile()
 {
+    if (m_downloading && m_downloader)
+        m_downloader->abort(); // stop any in-flight download; leaves no partial temp file behind
+
     backupFilename.clear();
     filePassword.clear();
+    setDownloadingState(false); // re-enable Open / Open-from-URL and reset busy state
     ui->dropZone->setFileName(QString());
     ui->extractBackupButton->setEnabled(false);
     ui->clearButton->setVisible(false);
@@ -185,6 +192,9 @@ void MainWindow::setPassword(const QString &password)
 
 void MainWindow::extractToPath(const QString &destDir)
 {
+    if (isBusy()) // never run two flows at once (download in progress / already extracting)
+        return;
+
     QFileInfo fileInfo(backupFilename);
     QDir extractTo(destDir + "/" + fileInfo.baseName());
 
@@ -261,8 +271,10 @@ void MainWindow::extractToPath(const QString &destDir)
     ui->logTextEdit->clear();
     ui->logTextEdit->setVisible(false);
 
-    // Disable controls during extraction
+    // Disable controls during extraction (openUrlButton too, so a download can't
+    // start mid-extraction and fight this flow over the shared progress bar).
     ui->openBackupButton->setEnabled(false);
+    ui->openUrlButton->setEnabled(false);
     ui->extractBackupButton->setEnabled(false);
 
     activeWorker = new ExtractionWorker(backupFilename, filePassword, currentExtractDir, this);
@@ -288,6 +300,7 @@ void MainWindow::onExtractionFinished(bool success)
 {
     activeWorker = nullptr;
     ui->openBackupButton->setEnabled(true);
+    ui->openUrlButton->setEnabled(true);
     ui->progressBar->setVisible(false);
 
     if (!success) {
@@ -351,6 +364,9 @@ void MainWindow::showInGraphicalShell(const QString &pathIn)
 
 void MainWindow::openBackupFile(const QString &filename)
 {
+    if (isBusy()) // e.g. a local file dropped mid-extraction; ignore until idle
+        return;
+
     backupFilename = filename;
     QFileInfo fileInfo(backupFilename);
 
@@ -367,7 +383,7 @@ void MainWindow::openBackupFile(const QString &filename)
 
 void MainWindow::openBackupFromUrl(const QUrl &url)
 {
-    if (!m_downloader || m_downloading)
+    if (!m_downloader || isBusy())
         return;
 
     if (!m_pendingTempFile.isEmpty()) {
@@ -409,13 +425,19 @@ void MainWindow::onDownloadFailed(const QString &errorMessage)
     setDownloadingState(false);
     ui->progressBar->setRange(0, 100);
     ui->progressBar->setVisible(false);
-    ui->dropZone->setFileName(QString());
+    // A failed download must not disturb a previously-opened backup: restore its
+    // label so Extract stays consistent, instead of blanking the zone while
+    // backupFilename still points at the old file.
+    if (!backupFilename.isEmpty())
+        ui->dropZone->setFileName(QFileInfo(backupFilename).fileName());
+    else
+        ui->dropZone->setFileName(QString());
     QMessageBox::warning(this, tr("Download Failed"), errorMessage);
 }
 
 void MainWindow::openFromUrl()
 {
-    if (m_downloading)
+    if (isBusy())
         return;
     UrlOpenDialog dlg(this);
     if (dlg.exec() != QDialog::Accepted)
@@ -430,6 +452,12 @@ void MainWindow::setDownloadingState(bool downloading)
     ui->openUrlButton->setEnabled(!downloading);
     ui->extractBackupButton->setEnabled(!downloading && !backupFilename.isEmpty());
     ui->clearButton->setVisible(!downloading && !backupFilename.isEmpty());
+    ui->actionClearFile->setEnabled(!downloading); // File → Clear File must not fire mid-download
+}
+
+bool MainWindow::isBusy() const
+{
+    return m_downloading || activeWorker != nullptr;
 }
 
 void MainWindow::installCliTool()
