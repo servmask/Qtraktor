@@ -436,8 +436,12 @@ void CloudDownloader::downloadMega(const QUrl &url)
         fileId = inner.left(inner.indexOf(QLatin1Char('!')));
     }
 
-    const QByteArray body =
-        QJsonDocument(QJsonArray({QJsonObject({{"a", "g"}, {"g", 1}, {"p", fileId}})})).toJson(QJsonDocument::Compact);
+    // "ssl":2 asks Mega for an HTTPS CDN URL. Mega's default download URL is
+    // plaintext http://, which startCdnDownload() (rightly) refuses; the payload
+    // is already AES-128-CTR encrypted, but requesting HTTPS keeps the transport
+    // encrypted too and satisfies the HTTPS-only guarantee.
+    const QByteArray body = QJsonDocument(QJsonArray({QJsonObject({{"a", "g"}, {"g", 1}, {"ssl", 2}, {"p", fileId}})}))
+                                .toJson(QJsonDocument::Compact);
 
     QNetworkRequest req(QUrl(QStringLiteral("https://g.api.mega.co.nz/cs?id=1&domain=meganz")));
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
