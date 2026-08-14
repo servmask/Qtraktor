@@ -3,6 +3,7 @@
 #include <QDialogButtonBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPalette>
 #include <QPushButton>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -27,7 +28,12 @@ UrlOpenDialog::UrlOpenDialog(QWidget *parent) : QDialog(parent)
                                     "Spaces \xe2\x80\xa2 Any direct HTTPS link"),
                                  this);
     descLabel->setWordWrap(true);
-    descLabel->setStyleSheet(QStringLiteral("color: palette(mid);"));
+    // Subdued but theme-adaptive. palette(mid) is a 3D-shadow grey that nearly
+    // vanishes on a dark background; PlaceholderText stays legible in both light
+    // and dark mode.
+    QPalette descPalette = descLabel->palette();
+    descPalette.setColor(QPalette::WindowText, descPalette.color(QPalette::PlaceholderText));
+    descLabel->setPalette(descPalette);
     layout->addWidget(descLabel);
 
     m_urlEdit = new QLineEdit(this);
