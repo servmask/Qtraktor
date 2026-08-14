@@ -170,7 +170,8 @@ jobs:
 
           # Strip frameworks and plugins Traktor does not use.
           # macdeployqt in Qt 6 bundles these via transitive plugin deps.
-          # Traktor is a pure Widgets app with zero QML, SVG, GIF, or network use.
+          # Traktor is a pure Widgets app with zero QML, SVG, or GIF use.
+          # KEEP libqsecuretransportbackend — CloudDownloader needs TLS for HTTPS.
           rm -rf build/Traktor.app/Contents/Frameworks/QtQml*.framework \
                  build/Traktor.app/Contents/Frameworks/QtQuick*.framework \
                  build/Traktor.app/Contents/Frameworks/QtSvg.framework
@@ -178,10 +179,8 @@ jobs:
                 build/Traktor.app/Contents/PlugIns/imageformats/libqgif.dylib \
                 build/Traktor.app/Contents/PlugIns/imageformats/libqico.dylib \
                 build/Traktor.app/Contents/PlugIns/tls/libqopensslbackend.dylib \
-                build/Traktor.app/Contents/PlugIns/tls/libqsecuretransportbackend.dylib \
                 build/Traktor.app/Contents/PlugIns/tls/libqcertonlybackend.dylib
-          rm -rf build/Traktor.app/Contents/PlugIns/networkinformation \
-                 build/Traktor.app/Contents/PlugIns/tls
+          rm -rf build/Traktor.app/Contents/PlugIns/networkinformation
 
           codesign --force --deep --sign - build/Traktor.app
 

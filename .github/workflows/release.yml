@@ -53,6 +53,7 @@ jobs:
           macdeployqt build/Traktor.app
 
           # Strip frameworks and plugins Traktor does not use.
+          # KEEP libqsecuretransportbackend — CloudDownloader needs TLS for HTTPS.
           rm -rf build/Traktor.app/Contents/Frameworks/QtQml*.framework \
                  build/Traktor.app/Contents/Frameworks/QtQuick*.framework \
                  build/Traktor.app/Contents/Frameworks/QtSvg.framework
@@ -60,10 +61,8 @@ jobs:
                 build/Traktor.app/Contents/PlugIns/imageformats/libqgif.dylib \
                 build/Traktor.app/Contents/PlugIns/imageformats/libqico.dylib \
                 build/Traktor.app/Contents/PlugIns/tls/libqopensslbackend.dylib \
-                build/Traktor.app/Contents/PlugIns/tls/libqsecuretransportbackend.dylib \
                 build/Traktor.app/Contents/PlugIns/tls/libqcertonlybackend.dylib
-          rm -rf build/Traktor.app/Contents/PlugIns/networkinformation \
-                 build/Traktor.app/Contents/PlugIns/tls
+          rm -rf build/Traktor.app/Contents/PlugIns/networkinformation
 
       - name: Archive app (arm64 - full bundle with Qt frameworks)
         if: matrix.arch == 'arm64'

@@ -56,6 +56,19 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="openUrlButton">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Open &amp;URL...</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="clearButton">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -65,6 +78,22 @@
         </property>
         <property name="text">
          <string>&amp;Clear</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="cancelButton">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="visible">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>Cancel</string>
         </property>
        </widget>
       </item>
@@ -269,10 +298,27 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>openUrlButton</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>openFromUrl()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>170</x>
+     <y>100</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>250</x>
+     <y>150</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>openBackup()</slot>
   <slot>clearFile()</slot>
   <slot>extractTo()</slot>
+  <slot>openFromUrl()</slot>
  </slots>
 </ui>

@@ -52,6 +52,31 @@ endif()
 # Linux SHARED libraries (libtraktor-core.so) link tiny-aes; needs PIC.
 set_target_properties(tiny-aes PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Second tiny-AES-c instance, compiled AES-128, for Mega download decryption
+# (AES-128-CTR). tiny-AES-c bakes its key size in at compile time, so this cannot
+# share the AES-256 instance above. Its exported symbols are prefixed (mega_AES_*)
+# via compile definitions so they don't clash with `tiny-aes` at link time. The
+# CTR streaming itself lives in src/megaaes.c (on top of the ECB primitive); only
+# the opaque C API in src/megaaes.h is exposed to the rest of the app.
+add_library(tiny-aes-mega STATIC vendor/tiny-aes-c/aes.c src/megaaes.c)
+target_include_directories(tiny-aes-mega PRIVATE vendor/tiny-aes-c src)
+target_compile_definitions(tiny-aes-mega PRIVATE
+    AES_init_ctx=mega_AES_init_ctx
+    AES_init_ctx_iv=mega_AES_init_ctx_iv
+    AES_ctx_set_iv=mega_AES_ctx_set_iv
+    AES_ECB_encrypt=mega_AES_ECB_encrypt
+    AES_ECB_decrypt=mega_AES_ECB_decrypt
+    AES_CBC_encrypt_buffer=mega_AES_CBC_encrypt_buffer
+    AES_CBC_decrypt_buffer=mega_AES_CBC_decrypt_buffer
+    AES_CTR_xcrypt_buffer=mega_AES_CTR_xcrypt_buffer
+)
+if(NOT MSVC)
+    target_compile_options(tiny-aes-mega PRIVATE -w)
+else()
+    target_compile_options(tiny-aes-mega PRIVATE /w)
+endif()
+set_target_properties(tiny-aes-mega PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # Application sources
 set(APP_SOURCES
     src/main.cpp
@@ -70,6 +95,8 @@ set(APP_SOURCES
     src/extractionworker.cpp
     src/autoextractor.cpp
     src/progresswindow.cpp
+    src/clouddownloader.cpp
+    src/urlopendialog.cpp
 )
 
 set(APP_HEADERS
@@ -90,6 +117,8 @@ set(APP_HEADERS
     src/progresswindow.h
     src/dockprogress.h
     src/updatemanager.h
+    src/clouddownloader.h
+    src/urlopendialog.h
 )
 
 set(APP_FORMS src/mainwindow.ui)
@@ -165,6 +194,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         src/appdelegate.cpp
         src/dockprogress_stub.cpp
         src/gui_entry.cpp
+        src/clouddownloader.cpp
+        src/urlopendialog.cpp
     )
     set(GUI_HEADERS
         src/mainwindow.h
@@ -176,12 +207,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         src/dropoverlay.h
         src/appdelegate.h
         src/dockprogress.h
+        src/clouddownloader.h
+        src/urlopendialog.h
     )
     qt_add_library(traktor-gui SHARED
         ${GUI_SOURCES} ${GUI_HEADERS} src/mainwindow.ui ${APP_RESOURCES}
     )
     target_link_libraries(traktor-gui PRIVATE
         traktor-core
+        tiny-aes-mega
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
@@ -219,6 +253,7 @@ else()
         ZLIB::ZLIB
         bzip2
         tiny-aes
+        tiny-aes-mega
     )
 endif()
 

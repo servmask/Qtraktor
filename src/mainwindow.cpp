@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include <QApplication>
+#include <QFile>
 #include <QFileDialog>
 #include <QIODevice>
 #include <QIcon>
@@ -12,11 +13,13 @@
 #include <QSettings>
 #include <QTimer>
 #include "agentconfig.h"
+#include "clouddownloader.h"
 #include "installcli.h"
 #include "passworddialog.h"
 #include "setupdialog.h"
 #include "aboutdialog.h"
 #include "cryptoutils.h"
+#include "urlopendialog.h"
 
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
 #include "updatemanager.h"
@@ -33,8 +36,24 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->progressBar->setVisible(false);
     ui->logTextEdit->setVisible(false);
     connect(ui->dropZone, &DropOverlay::fileDropped, this, &MainWindow::openBackupFile);
+    connect(ui->dropZone, &DropOverlay::urlDropped, this, &MainWindow::openBackupFromUrl);
     connect(ui->dropZone, &DropOverlay::clicked, this, &MainWindow::openBackup);
     ui->clearButton->setVisible(false);
+
+    m_downloader = new CloudDownloader(this);
+    connect(m_downloader, &CloudDownloader::progress, this, &MainWindow::onDownloadProgress);
+    connect(m_downloader, &CloudDownloader::finished, this, &MainWindow::onDownloadFinished);
+    connect(m_downloader, &CloudDownloader::failed, this, &MainWindow::onDownloadFailed);
+
+    ui->cancelButton->setVisible(false);
+    connect(ui->cancelButton, &QPushButton::clicked, this, &MainWindow::cancelDownload);
+
+    // Insert "Open from URL…" into the existing File menu (defined in mainwindow.ui),
+    // right after the "Open backup" action so it appears as the second item.
+    auto *openFromUrlAction = new QAction(tr("Open from &URL..."), this);
+    openFromUrlAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
+    ui->menu_File->insertAction(ui->actionClearFile, openFromUrlAction);
+    connect(openFromUrlAction, &QAction::triggered, this, &MainWindow::openFromUrl);
 
     // Add Tools menu
     QMenu *toolsMenu = menuBar()->addMenu(tr("&Tools"));
@@ -105,6 +124,9 @@ MainWindow::~MainWindow()
 
 void MainWindow::openBackup()
 {
+    if (isBusy())
+        return;
+
     QSettings settings("com.servmask", "Traktor");
     QString lastDir = settings.value("lastOpenPath").toString();
 
@@ -132,13 +154,24 @@ void MainWindow::openBackup()
 
 void MainWindow::clearFile()
 {
+    if (m_downloading && m_downloader)
+        m_downloader->abort(); // stop any in-flight download; leaves no partial temp file behind
+
     backupFilename.clear();
     filePassword.clear();
+    m_loadedDisplayName.clear();
+    setDownloadingState(false); // re-enable Open / Open-from-URL and reset busy state
     ui->dropZone->setFileName(QString());
     ui->extractBackupButton->setEnabled(false);
     ui->clearButton->setVisible(false);
     ui->progressBar->setVisible(false);
     ui->logTextEdit->setVisible(false);
+
+    // Remove temp file from a previous cloud download
+    if (!m_pendingTempFile.isEmpty()) {
+        QFile::remove(m_pendingTempFile);
+        m_pendingTempFile.clear();
+    }
 }
 
 void MainWindow::extractTo()
@@ -163,6 +196,9 @@ void MainWindow::setPassword(const QString &password)
 
 void MainWindow::extractToPath(const QString &destDir)
 {
+    if (isBusy()) // never run two flows at once (download in progress / already extracting)
+        return;
+
     QFileInfo fileInfo(backupFilename);
     QDir extractTo(destDir + "/" + fileInfo.baseName());
 
@@ -239,8 +275,10 @@ void MainWindow::extractToPath(const QString &destDir)
     ui->logTextEdit->clear();
     ui->logTextEdit->setVisible(false);
 
-    // Disable controls during extraction
+    // Disable controls during extraction (openUrlButton too, so a download can't
+    // start mid-extraction and fight this flow over the shared progress bar).
     ui->openBackupButton->setEnabled(false);
+    ui->openUrlButton->setEnabled(false);
     ui->extractBackupButton->setEnabled(false);
 
     activeWorker = new ExtractionWorker(backupFilename, filePassword, currentExtractDir, this);
@@ -266,6 +304,7 @@ void MainWindow::onExtractionFinished(bool success)
 {
     activeWorker = nullptr;
     ui->openBackupButton->setEnabled(true);
+    ui->openUrlButton->setEnabled(true);
     ui->progressBar->setVisible(false);
 
     if (!success) {
@@ -329,6 +368,9 @@ void MainWindow::showInGraphicalShell(const QString &pathIn)
 
 void MainWindow::openBackupFile(const QString &filename)
 {
+    if (isBusy()) // e.g. a local file dropped mid-extraction; ignore until idle
+        return;
+
     backupFilename = filename;
     QFileInfo fileInfo(backupFilename);
 
@@ -338,9 +380,113 @@ void MainWindow::openBackupFile(const QString &filename)
         return;
     }
 
-    ui->dropZone->setFileName(fileInfo.fileName());
+    m_loadedDisplayName = fileInfo.fileName();
+    ui->dropZone->setFileName(m_loadedDisplayName);
     ui->extractBackupButton->setEnabled(true);
     ui->clearButton->setVisible(true);
+}
+
+void MainWindow::openBackupFromUrl(const QUrl &url)
+{
+    if (!m_downloader || isBusy())
+        return;
+
+    // NOTE: the previous cloud temp file is NOT removed here. Deleting it before
+    // the replacement download succeeds would break the currently-loaded backup
+    // if this new download is cancelled or fails. It is removed in
+    // onDownloadFinished() once the replacement is safely in hand.
+    setDownloadingState(true);
+    ui->dropZone->setFileName(tr("Downloading from %1\xe2\x80\xa6").arg(url.host()));
+    ui->progressBar->setVisible(true);
+    ui->progressBar->setRange(0, 100);
+    ui->progressBar->setValue(0);
+    m_downloader->download(url);
+}
+
+void MainWindow::onDownloadProgress(int percent)
+{
+    if (percent >= 0) {
+        ui->progressBar->setRange(0, 100);
+        ui->progressBar->setValue(percent);
+    } else {
+        // Content-Length unknown: show a busy/indeterminate bar
+        ui->progressBar->setRange(0, 0);
+    }
+}
+
+void MainWindow::onDownloadFinished(const QString &tempFilePath, const QString &suggestedName)
+{
+    setDownloadingState(false);
+    ui->progressBar->setRange(0, 100);
+    ui->progressBar->setVisible(false);
+    // Only now that the new download succeeded is it safe to remove the previous
+    // cloud temp file — a cancelled/failed replacement keeps the old backup loaded.
+    if (!m_pendingTempFile.isEmpty() && m_pendingTempFile != tempFilePath)
+        QFile::remove(m_pendingTempFile);
+    m_pendingTempFile = tempFilePath;
+    openBackupFile(tempFilePath);
+    // Show (and remember) the friendly name from the download, not the temp path,
+    // so a later cancel/failure restores "mysite.wpress" rather than the temp name.
+    m_loadedDisplayName = suggestedName;
+    ui->dropZone->setFileName(suggestedName);
+}
+
+void MainWindow::onDownloadFailed(const QString &errorMessage)
+{
+    setDownloadingState(false);
+    ui->progressBar->setRange(0, 100);
+    ui->progressBar->setVisible(false);
+    // A failed download must not disturb a previously-opened backup: restore its
+    // label so Extract stays consistent, instead of blanking the zone while
+    // backupFilename still points at the old file.
+    if (!backupFilename.isEmpty())
+        ui->dropZone->setFileName(m_loadedDisplayName);
+    else
+        ui->dropZone->setFileName(QString());
+    QMessageBox::warning(this, tr("Download Failed"), errorMessage);
+}
+
+void MainWindow::cancelDownload()
+{
+    if (!m_downloading || !m_downloader)
+        return;
+
+    m_downloader->abort(); // failed() is NOT emitted after abort(), so restore the UI here
+    setDownloadingState(false);
+    ui->progressBar->setRange(0, 100);
+    ui->progressBar->setVisible(false);
+    // Restore the previously-open file's label (if any); a cancelled download
+    // must not disturb a backup that was already loaded.
+    if (!backupFilename.isEmpty())
+        ui->dropZone->setFileName(m_loadedDisplayName);
+    else
+        ui->dropZone->setFileName(QString());
+}
+
+void MainWindow::openFromUrl()
+{
+    if (isBusy())
+        return;
+    UrlOpenDialog dlg(this);
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+    openBackupFromUrl(dlg.url());
+}
+
+void MainWindow::setDownloadingState(bool downloading)
+{
+    m_downloading = downloading;
+    ui->openBackupButton->setEnabled(!downloading);
+    ui->openUrlButton->setEnabled(!downloading);
+    ui->extractBackupButton->setEnabled(!downloading && !backupFilename.isEmpty());
+    ui->clearButton->setVisible(!downloading && !backupFilename.isEmpty());
+    ui->cancelButton->setVisible(downloading);     // swap Clear ↔ Cancel while a download runs
+    ui->actionClearFile->setEnabled(!downloading); // File → Clear File must not fire mid-download
+}
+
+bool MainWindow::isBusy() const
+{
+    return m_downloading || activeWorker != nullptr;
 }
 
 void MainWindow::installCliTool()

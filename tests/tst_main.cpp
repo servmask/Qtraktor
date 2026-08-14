@@ -8,6 +8,7 @@ class TestExtractionWorker;
 class TestQSettings;
 class TestFuzz;
 class TestCli;
+class TestCloudDownloader;
 
 // Test entry point: runs all test classes
 int main(int argc, char *argv[])
@@ -41,6 +42,10 @@ int main(int argc, char *argv[])
     {
         extern int runTestCli(int, char **);
         status |= runTestCli(argc, argv);
+    }
+    {
+        extern int runTestCloudDownloader(int, char **);
+        status |= runTestCloudDownloader(argc, argv);
     }
 
     return status;
