@@ -55,6 +55,7 @@ private:
     CloudDownloader *m_downloader = nullptr;
     bool m_downloading = false;
     QString m_pendingTempFile;                // temp file to remove on next open/clear
+    QString m_loadedDisplayName;              // friendly label of the loaded backup (temp paths are ugly)
     UpdateManager *m_updateManager = nullptr; // non-null on macOS and Windows; nullptr on Linux
     void showInGraphicalShell(const QString &pathIn);
     void setDownloadingState(bool downloading);

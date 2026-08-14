@@ -159,6 +159,7 @@ void MainWindow::clearFile()
 
     backupFilename.clear();
     filePassword.clear();
+    m_loadedDisplayName.clear();
     setDownloadingState(false); // re-enable Open / Open-from-URL and reset busy state
     ui->dropZone->setFileName(QString());
     ui->extractBackupButton->setEnabled(false);
@@ -379,7 +380,8 @@ void MainWindow::openBackupFile(const QString &filename)
         return;
     }
 
-    ui->dropZone->setFileName(fileInfo.fileName());
+    m_loadedDisplayName = fileInfo.fileName();
+    ui->dropZone->setFileName(m_loadedDisplayName);
     ui->extractBackupButton->setEnabled(true);
     ui->clearButton->setVisible(true);
 }
@@ -423,6 +425,9 @@ void MainWindow::onDownloadFinished(const QString &tempFilePath, const QString &
         QFile::remove(m_pendingTempFile);
     m_pendingTempFile = tempFilePath;
     openBackupFile(tempFilePath);
+    // Show (and remember) the friendly name from the download, not the temp path,
+    // so a later cancel/failure restores "mysite.wpress" rather than the temp name.
+    m_loadedDisplayName = suggestedName;
     ui->dropZone->setFileName(suggestedName);
 }
 
@@ -435,7 +440,7 @@ void MainWindow::onDownloadFailed(const QString &errorMessage)
     // label so Extract stays consistent, instead of blanking the zone while
     // backupFilename still points at the old file.
     if (!backupFilename.isEmpty())
-        ui->dropZone->setFileName(QFileInfo(backupFilename).fileName());
+        ui->dropZone->setFileName(m_loadedDisplayName);
     else
         ui->dropZone->setFileName(QString());
     QMessageBox::warning(this, tr("Download Failed"), errorMessage);
@@ -453,7 +458,7 @@ void MainWindow::cancelDownload()
     // Restore the previously-open file's label (if any); a cancelled download
     // must not disturb a backup that was already loaded.
     if (!backupFilename.isEmpty())
-        ui->dropZone->setFileName(QFileInfo(backupFilename).fileName());
+        ui->dropZone->setFileName(m_loadedDisplayName);
     else
         ui->dropZone->setFileName(QString());
 }
