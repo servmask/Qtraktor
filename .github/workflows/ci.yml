@@ -262,20 +262,9 @@ jobs:
           cache: true
 
       - name: Setup MSVC
-        shell: pwsh
-        run: |
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $installPath = & $vswhere -latest -property installationPath
-          $vcvarsall = Join-Path $installPath "VC\Auxiliary\Build\vcvarsall.bat"
-          # Capture env before and after vcvarsall, export only the differences
-          $before = @{}
-          Get-ChildItem env: | ForEach-Object { $before[$_.Name] = $_.Value }
-          cmd /c "`"$vcvarsall`" x64 >nul 2>&1 && set" | ForEach-Object {
-            if ($_ -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
-              $n = $Matches[1]; $v = $Matches[2]
-              if ($before[$n] -ne $v) { echo "$n=$v" >> $env:GITHUB_ENV }
-            }
-          }
+        uses: ./.github/actions/setup-msvc
+        with:
+          arch: x64
 
       - name: Cache vcpkg packages
         uses: actions/cache@v5
