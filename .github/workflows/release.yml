@@ -28,7 +28,7 @@ jobs:
             arch: x86_64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v4
@@ -78,7 +78,7 @@ jobs:
           tar -cf Traktor-x86_64-binaries.tar -C x86_64-binaries .
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Traktor-${{ matrix.arch }}.app
           path: Traktor-${{ matrix.arch }}*.tar
@@ -94,7 +94,7 @@ jobs:
       # scripts/sparkle/ has the appcast XML template (Sparkle artifact step).
       # Doing it once here removes the previous "rename before checkout"
       # + redundant second checkout pattern.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           sparse-checkout: |
             scripts/macos-pkg
@@ -102,13 +102,13 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Download arm64 app (full bundle)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: Traktor-arm64.app
           path: arm64
 
       - name: Download x86_64 binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: Traktor-x86_64.app
           path: x86_64
@@ -273,7 +273,7 @@ jobs:
           cat appcast-macos.xml
 
       - name: Upload Sparkle artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Traktor-Sparkle-${{ env.VERSION }}
           path: |
@@ -326,7 +326,7 @@ jobs:
           xcrun stapler validate "Traktor-${{ env.VERSION }}.pkg"
 
       - name: Upload PKG artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Traktor-${{ env.VERSION }}.pkg
           path: Traktor-${{ env.VERSION }}.pkg
@@ -344,7 +344,7 @@ jobs:
     # added in repo Settings -> Environments without code changes.
     environment: release-signing
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v4
@@ -356,12 +356,12 @@ jobs:
           cache: true
 
       - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ./.github/actions/setup-msvc
         with:
           arch: x64
 
       - name: Cache vcpkg packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: C:\vcpkg\installed
           key: vcpkg-windows-msvc2022-zlib
@@ -579,7 +579,7 @@ jobs:
           Write-Host "Signer OK: $subject"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Traktor-${{ env.VERSION }}.exe
           path: Traktor-${{ env.VERSION }}.exe
@@ -635,7 +635,7 @@ jobs:
           cat appcast-windows.xml
 
       - name: Upload Sparkle artifacts (Windows)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Traktor-Sparkle-Windows-${{ env.VERSION }}
           path: appcast-windows.xml
@@ -645,7 +645,7 @@ jobs:
     env:
       QT_QPA_PLATFORM: offscreen
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v4
@@ -666,7 +666,7 @@ jobs:
           cmake --build build -j"$(nproc)"
 
       - name: Cache linuxdeploy
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: linuxdeploy*.AppImage
           key: linuxdeploy-continuous
@@ -718,7 +718,7 @@ jobs:
           mv Traktor-*.AppImage Traktor-x86_64-${{ env.VERSION }}.AppImage
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Traktor-x86_64-${{ env.VERSION }}.AppImage
           path: Traktor-x86_64-${{ env.VERSION }}.AppImage
@@ -731,7 +731,7 @@ jobs:
       contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
 
       - name: Check for VirusTotal API key
         env:

@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: cpp-linter/cpp-linter-action@v2
         id: linter
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: amannn/action-semantic-pull-request@v5
+      - uses: amannn/action-semantic-pull-request@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -59,7 +59,7 @@ jobs:
     env:
       QT_QPA_PLATFORM: offscreen
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v4
@@ -84,7 +84,7 @@ jobs:
 
       - name: Cache linuxdeploy
         if: github.event_name == 'pull_request'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: linuxdeploy*.AppImage
           key: linuxdeploy-continuous
@@ -130,7 +130,7 @@ jobs:
 
       - name: Upload build artifact
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Traktor-linux-x86_64
           path: Traktor-*.AppImage
@@ -142,7 +142,7 @@ jobs:
     # still links via Qt6::Gui, causing "ld: framework 'AGL' not found".
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v4
@@ -153,7 +153,11 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: brew install pkg-config
+        # The formula is named pkgconf upstream; pkg-config is an alias. Check the
+        # real name so a preinstalled runner does not emit an "already installed"
+        # warning. OpenSSL is intentionally absent: #57 replaced it with vendored
+        # tiny-AES-c.
+        run: brew list pkgconf &>/dev/null || brew install pkg-config
 
       - name: Build
         run: |
@@ -230,14 +234,14 @@ jobs:
 
       - name: Upload PKG artifact
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Traktor-macOS-PKG
           path: Traktor.pkg
 
       - name: Upload app artifact
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Traktor-macOS
           path: Traktor.app.tar
@@ -246,7 +250,7 @@ jobs:
     name: Build & Test (Windows)
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v4
@@ -258,12 +262,12 @@ jobs:
           cache: true
 
       - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ./.github/actions/setup-msvc
         with:
           arch: x64
 
       - name: Cache vcpkg packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: C:\vcpkg\installed
           key: vcpkg-windows-msvc2022-zlib
@@ -324,7 +328,7 @@ jobs:
 
       - name: Upload build artifact
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Traktor-windows-x64
           path: dist
@@ -338,7 +342,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Post artifact links to PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const runId = context.runId;
