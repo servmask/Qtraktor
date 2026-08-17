@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/servmask/Qtraktor/compare/v1.11.3...v1.12.0) (2026-08-17)
+
+
+### Features
+
+* download .wpress backups from cloud storage URLs ([#52](https://github.com/servmask/Qtraktor/issues/52)) ([ea8cc0f](https://github.com/servmask/Qtraktor/commit/ea8cc0fb9ab491478fb146d126749ab575112386))
+
 ## [1.11.3](https://github.com/servmask/Qtraktor/compare/v1.11.2...v1.11.3) (2026-06-30)
 
 
